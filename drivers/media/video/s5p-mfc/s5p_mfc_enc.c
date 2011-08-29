@@ -2989,7 +2989,7 @@ static void s5p_mfc_buf_cleanup(struct vb2_buffer *vb)
 	mfc_debug_leave();
 }
 
-static int s5p_mfc_start_streaming(struct vb2_queue *q)
+static int s5p_mfc_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct s5p_mfc_ctx *ctx = q->drv_priv;
 	struct s5p_mfc_dev *dev = ctx->dev;
