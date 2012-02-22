@@ -55,6 +55,8 @@ config VIDEO_EXYNOS_MEMSIZE_FIMC_IS_ISP
 	default "61000"
 	help
 	  This is to assign memory used in FIMC-IS ISP.
+
+source "drivers/media/video/exynos/jpeg/Kconfig"
 endif
 
 config MEDIA_EXYNOS

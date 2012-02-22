@@ -10,5 +10,6 @@ endif
 obj-$(CONFIG_VIDEO_EXYNOS5_FIMC_IS)	+= fimc-is-mc/
 obj-$(CONFIG_VIDEO_EXYNOS_TV)		+= tv/
 obj-$(CONFIG_VIDEO_EXYNOS)		+= rotator/
+obj-$(CONFIG_VIDEO_EXYNOS_JPEG)	+= jpeg/
 
 EXTRA_CLAGS += -Idrivers/media/video
