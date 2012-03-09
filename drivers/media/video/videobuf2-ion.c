@@ -329,6 +329,8 @@ static void *vb2_ion_get_userptr(void *alloc_ctx, unsigned long vaddr,
 	if (!buf)
 		return ERR_PTR(-ENOMEM);
 
+
+#if 0
 	buf->handle = ion_import_uva(ctx->client, vaddr, &offset);
 	if (IS_ERR(buf->handle)) {
 		if (PTR_ERR(buf->handle) == -ENXIO) {
@@ -355,6 +357,7 @@ static void *vb2_ion_get_userptr(void *alloc_ctx, unsigned long vaddr,
 
 		offset = 0;
 	}
+#endif
 
 	buf->cookie.sg = ion_map_dma(ctx->client, buf->handle);
 	if (IS_ERR(buf->cookie.sg)) {
