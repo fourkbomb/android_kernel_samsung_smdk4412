@@ -54,6 +54,7 @@ enum jpeg_result {
 	ERR_DEC_INVALID_FORMAT,
 	ERR_MULTI_SCAN,
 	ERR_FRAME,
+	ERR_TIME_OUT,
 	ERR_UNKNOWN,
 };
 
