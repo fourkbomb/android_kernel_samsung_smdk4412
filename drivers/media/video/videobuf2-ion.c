@@ -84,7 +84,6 @@ EXPORT_SYMBOL(vb2_ion_set_alignment);
 void *vb2_ion_create_context(struct device *dev, size_t alignment, long flags)
 {
 	struct vb2_ion_context *ctx;
-	int ret;
 	unsigned int heapmask = ION_HEAP_EXYNOS_USER_MASK;
 
 	/* ion_client_create() expects the current thread to be a kernel thread
@@ -108,27 +107,15 @@ void *vb2_ion_create_context(struct device *dev, size_t alignment, long flags)
 	ctx->dev = dev;
 	ctx->client = ion_client_create(ion_exynos, heapmask, dev_name(dev));
 	if (IS_ERR(ctx->client)) {
-		ret = PTR_ERR(ctx->client);
-		goto err_ion;
-	}
-
-	if (flags & VB2ION_CTX_IOMMU) {
-		ret = iovmm_setup(dev);
-		if (ret)
-			goto err_iovmm;
+		void *retp = ctx->client;
+		kfree(ctx);
+		return retp;
 	}
 
 	vb2_ion_set_alignment(ctx, alignment);
 	ctx->flags = flags;
 
 	return ctx;
-
-err_iovmm:
-	ion_client_destroy(ctx->client);
-err_ion:
-	kfree(ctx);
-
-	return ERR_PTR(ret);
 }
 EXPORT_SYMBOL(vb2_ion_create_context);
 
@@ -137,7 +124,6 @@ void vb2_ion_destroy_context(void *ctx)
 	struct vb2_ion_context *vb2ctx = ctx;
 
 	ion_client_destroy(vb2ctx->client);
-	iovmm_cleanup(vb2ctx->dev);
 	kfree(vb2ctx);
 }
 EXPORT_SYMBOL(vb2_ion_destroy_context);
@@ -187,8 +173,8 @@ void *vb2_ion_private_alloc(void *alloc_ctx, size_t size)
 	if (ctx_iommu(ctx)) {
 		buf->cookie.ioaddr = iovmm_map(ctx->dev,
 						buf->cookie.sg, 0, size);
-		if (!buf->cookie.ioaddr) {
-			ret = -EFAULT;
+		if (IS_ERR_VALUE(buf->cookie.ioaddr)) {
+			ret = (int)buf->cookie.ioaddr;
 			goto err_ion_map_io;
 		}
 	}
@@ -384,8 +370,8 @@ static void *vb2_ion_get_userptr(void *alloc_ctx, unsigned long vaddr,
 	if (ctx_iommu(ctx)) {
 		buf->cookie.ioaddr = iovmm_map(ctx->dev, buf->cookie.sg,
 						offset, size);
-		if (!buf->cookie.ioaddr) {
-			ret = -EFAULT;
+		if (IS_ERR_VALUE(buf->cookie.ioaddr)) {
+			ret = (int)buf->cookie.ioaddr;
 			goto err_ion_map_io;
 		}
 	}
