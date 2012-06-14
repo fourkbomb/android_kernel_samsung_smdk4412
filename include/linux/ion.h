@@ -55,6 +55,15 @@ enum ion_heap_type {
 #define ION_EXYNOS_WRITE_MASK		(1 << (BITS_PER_LONG - 1))
 #endif
 
+/**
+ * heap flags - the lower 16 bits are used by core ion, the upper 16
+ * bits are reserved for use by the heaps themselves.
+ */
+#define ION_FLAG_CACHED 1		/* mappings of this buffer should be
+					   cached, ion will do cache
+					   maintenance when the buffer is
+					   mapped for dma */
+
 #ifdef __KERNEL__
 struct ion_device;
 struct ion_heap;
@@ -134,14 +143,18 @@ void ion_client_destroy(struct ion_client *client);
  * @len:	size of the allocation
  * @align:	requested allocation alignment, lots of hardware blocks have
  *		alignment requirements of some kind
- * @flags:	mask of heaps to allocate from, if multiple bits are set
+ * @heap_mask:	mask of heaps to allocate from, if multiple bits are set
  *		heaps will be tried in order from lowest to highest order bit
+ * @flags:	heap flags, the low 16 bits are consumed by ion, the high 16
+ *		bits are passed on to the respective heap and can be heap
+ * 		custom
  *
  * Allocate memory in one of the heaps provided in heap mask and return
  * an opaque handle to it.
  */
 struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
-			     size_t align, unsigned int flags);
+			     size_t align, unsigned int heap_mask,
+			     unsigned int flags);
 
 /**
  * ion_free - free a handle
@@ -244,6 +257,7 @@ static inline struct ion_handle *ion_exynos_get_user_pages(
  * struct ion_allocation_data - metadata passed from userspace for allocations
  * @len:	size of the allocation
  * @align:	required alignment of the allocation
+ * @heap_mask:	mask of heaps to allocate from
  * @flags:	flags passed to heap
  * @handle:	pointer that will be populated with a cookie to use to refer
  *		to this allocation
@@ -253,6 +267,7 @@ static inline struct ion_handle *ion_exynos_get_user_pages(
 struct ion_allocation_data {
 	size_t len;
 	size_t align;
+	unsigned int heap_mask;
 	unsigned int flags;
 	struct ion_handle *handle;
 };
