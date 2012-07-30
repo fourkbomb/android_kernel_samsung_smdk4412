@@ -401,10 +401,11 @@ void iovmm_unmap(struct device *dev, dma_addr_t iova)
 
 	region->start = round_down(region->start, PAGE_SIZE);
 
-	gen_pool_free(vmm->vmm_pool, region->start, region->size);
 	list_del(&region->node);
 
 	unmapped_size = iommu_unmap(vmm->domain, region->start, region->size);
+
+	gen_pool_free(vmm->vmm_pool, region->start, region->size);
 
 	WARN_ON(unmapped_size != region->size);
 	dev_dbg(dev, "IOVMM: Unmapped %#x bytes from %#x.\n",
