@@ -268,6 +268,10 @@ struct v4l2_subdev_audio_ops {
    try_mbus_fmt: try to set a pixel format on a video data source
 
    s_mbus_fmt: set a pixel format on a video data source
+
+   s_rx_buffer: set a host allocated memory buffer for the subdev. The subdev
+	can adjust @size to a lower value and must not write more data to the
+	buffer starting at @data than the original value of @size.
  */
 struct v4l2_subdev_video_ops {
 	int (*s_routing)(struct v4l2_subdev *sd, u32 input, u32 output, u32 config);
@@ -311,6 +315,8 @@ struct v4l2_subdev_video_ops {
 			    struct v4l2_mbus_framefmt *fmt);
 	int (*s_mbus_fmt)(struct v4l2_subdev *sd,
 			  struct v4l2_mbus_framefmt *fmt);
+	int (*s_rx_buffer)(struct v4l2_subdev *sd, void *buf,
+			   unsigned int *size);
 };
 
 /*
