@@ -70,8 +70,10 @@ MODULE_PARM_DESC(debug, "Enable module debug trace. Set to 1 to enable.");
 /* Interrupt Source Register */
 #define S5P_CSIS_INTSRC_EVEN_BEFORE		(1 << 31)
 #define S5P_CSIS_INTSRC_EVEN_AFTER		(1 << 30)
+#define S5P_CSIS_INTSRC_EVEN			(3 << 30)
 #define S5P_CSIS_INTSRC_ODD_BEFORE		(1 << 29)
 #define S5P_CSIS_INTSRC_ODD_AFTER		(1 << 28)
+#define S5P_CSIS_INTSRC_NON_IMAGE_DATA	(0xf << 28)
 
 #define S5P_CSIS_INTSRC_ERR_SOT_HS		(0xF << 12)
 #define S5P_CSIS_INTSRC_ERR_LOST_FS		(1 << 5)
@@ -93,6 +95,11 @@ MODULE_PARM_DESC(debug, "Enable module debug trace. Set to 1 to enable.");
 #define CSIS_MAX_PIX_WIDTH		0xFFFF
 #define CSIS_MAX_PIX_HEIGHT		0xFFFF
 
+/* Non-image packet data buffers */
+#define CSIS_PKTDATA_ODD		0x2000
+#define CSIS_PKTDATA_EVEN		0x3000
+#define CSIS_PKTDATA_SIZE		SZ_4K
+
 enum {
 	CSIS_CLK_BUS,
 	CSIS_CLK_GATE,
@@ -111,6 +118,11 @@ enum {
 	CSIS_PWR_ST_SUSPENDED,
 };
 
+struct s5p_csis_pktbuf {
+	u32 *data;
+	unsigned int len;
+};
+
 struct s5p_csis_state {
 	struct mutex lock;
 	struct v4l2_subdev sd;
@@ -122,6 +134,7 @@ struct s5p_csis_state {
 	struct clk *clock[NUM_CSIS_CLOCKS];
 	struct regulator *supply;
 	unsigned long power;
+	struct s5p_csis_pktbuf pkt_buf;
 };
 
 struct s5p_csis_color_format {
@@ -439,6 +452,22 @@ static void s5p_csis_stop_stream(struct s5p_csis_state *state)
 	s5p_csis_system_enable(state, false);
 }
 
+static int s5p_csis_s_rx_buf(struct v4l2_subdev *sd, void *buf,
+		unsigned int* size)
+{
+	struct s5p_csis_state *state = to_s5p_csis_state(sd);
+	unsigned long flags;
+
+	*size = min_t(unsigned int, *size, CSIS_PKTDATA_SIZE);
+
+	mutex_lock(&state->lock);
+	state->pkt_buf.data = buf;
+	state->pkt_buf.len = *size;
+	mutex_unlock(&state->lock);
+
+	return 0;
+}
+
 static int s5p_csis_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct s5p_csis_state *state = to_s5p_csis_state(sd);
@@ -470,6 +499,7 @@ static struct v4l2_subdev_video_ops s5p_csis_video_ops = {
 	.try_mbus_fmt	= s5p_csis_try_fmt,
 	.g_mbus_fmt	= s5p_csis_g_fmt,
 	.s_mbus_fmt	= s5p_csis_s_fmt,
+	.s_rx_buffer = s5p_csis_s_rx_buf,
 	.s_stream	= s5p_csis_s_stream,
 };
 
@@ -481,11 +511,21 @@ static struct v4l2_subdev_ops s5p_csis_subdev_ops = {
 static irqreturn_t s5p_csis_isr(int irq, void *dev_id)
 {
 	struct s5p_csis_state *state = dev_id;
+	struct s5p_csis_pktbuf *pktbuf = &state->pkt_buf;
 	u32 cfg;
 
 	/* Just clear the interrupt pending bits. */
 	cfg = readl(state->regs + S5P_CSIS_INTSRC);
 	writel(cfg, state->regs + S5P_CSIS_INTSRC);
+
+	if ((cfg & S5P_CSIS_INTSRC_NON_IMAGE_DATA) && pktbuf->data) {
+		u32 offset;
+
+		if (cfg & S5P_CSIS_INTSRC_EVEN)
+			offset = CSIS_PKTDATA_EVEN;
+		else
+			offset = CSIS_PKTDATA_ODD;
+	}
 
 	if (unlikely(cfg & S5P_CSIS_INTSRC_ERR)) {
 		if (err_print_cnt < 30) {
