@@ -207,7 +207,17 @@ static struct fimc_fmt fimc_formats[] = {
 		.memplanes	= 1,
 		.colplanes	= 1,
 		.mbus_code	= V4L2_MBUS_FMT_JPEG_1X8,
-		.flags		= FMT_FLAGS_CAM,
+		.flags		= FMT_FLAGS_CAM | FMT_FLAGS_COMPRESSED,
+	}, {
+		.name		= "S5C73MX interleaved UYVY/JPEG",
+		.fourcc		= V4L2_PIX_FMT_S5C_UYVY_JPG,
+		.color		= S5P_FIMC_YUYV_JPEG,
+		.depth		= { 8 },
+		.memplanes	= 2,
+		.colplanes	= 1,
+		.mdataplanes = 0x2, /* plane 1 holds frame meta data */
+		.mbus_code	= V4L2_MBUS_FMT_S5C_UYVY_JPEG_1X8,
+		.flags		= FMT_FLAGS_CAM | FMT_FLAGS_COMPRESSED,
 	},
 };
 
@@ -448,6 +458,8 @@ static int stop_streaming(struct vb2_queue *q)
 void fimc_capture_irq_handler(struct fimc_dev *fimc)
 {
 	struct fimc_vid_cap *cap = &fimc->vid_cap;
+	struct v4l2_subdev *csis = cap->mipi_sd;
+	struct fimc_frame *f = &cap->ctx->d_frame;
 	struct fimc_vid_buffer *v_buf;
 	struct v4l2_control is_ctrl;
 	u32 is_fn;
@@ -518,6 +530,26 @@ void fimc_capture_irq_handler(struct fimc_dev *fimc)
 			cap->buf_index = 0;
 	}
 
+	/*
+	 * Set up a buffer at MIPI-CSIS if current image format
+	 * requires the frame embedded data capture.
+	 */
+	if (f->fmt->mdataplanes && !list_empty(&cap->active_buf_q)) {
+		unsigned int plane = ffs(f->fmt->mdataplanes) - 1;
+		unsigned int size = f->payload[plane];
+		s32 index = fimc_hw_get_frame_index(fimc);
+		void *vaddr;
+
+		list_for_each_entry(v_buf, &cap->active_buf_q, list) {
+			if (v_buf->index != index)
+				continue;
+			vaddr = vb2_plane_vaddr(&v_buf->vb, plane);
+			v4l2_subdev_call(csis, video, s_rx_buffer,
+					 vaddr, &size);
+			break;
+		}
+	}
+
 	if (cap->active_buf_cnt == 0) {
 		clear_bit(ST_CAPT_RUN, &fimc->state);
 
@@ -579,7 +611,7 @@ static irqreturn_t fimc_irq_handler(int irq, void *priv)
 	}
 
 	if (cap && cap->ctx && cap->ctx->d_frame.fmt)
-		jpeg_capt = fimc_fmt_is_jpeg(cap->ctx->d_frame.fmt->color);
+		jpeg_capt = fimc_fmt_is_user_defined(cap->ctx->d_frame.fmt->color);
 
 	if (test_bit(ST_CAPT_PEND, &fimc->state))
 		fimc_capture_irq_handler(fimc);
@@ -635,7 +667,7 @@ int fimc_prepare_addr(struct fimc_ctx *ctx, struct vb2_buffer *vb,
 		default:
 			return -EINVAL;
 		}
-	} else {
+	} else if (!frame->fmt->mdataplanes) {
 		if (frame->fmt->memplanes >= 2)
 			paddr->cb = fimc->vb2->plane_addr(vb, 1);
 
@@ -1000,6 +1032,11 @@ int fimc_vidioc_g_fmt_mplane(struct file *file, void *priv,
 
 		pixm->plane_fmt[i].bytesperline = bpl;
 
+		if (frame->fmt->flags & FMT_FLAGS_COMPRESSED) {
+			pixm->plane_fmt[i].sizeimage = frame->payload[i];
+			continue;
+		}
+
 		pixm->plane_fmt[i].sizeimage = (frame->o_width *
 			frame->o_height * frame->fmt->depth[i]) / 8;
 	}
@@ -1356,7 +1393,7 @@ int fimc_s_ctrl(struct fimc_ctx *ctx, struct v4l2_control *ctrl)
 	struct fimc_dev *fimc = ctx->fimc_dev;
 	int ret = 0;
 
-	if (fimc_fmt_is_jpeg(ctx->d_frame.fmt->color) &&
+	if (fimc_fmt_is_user_defined(ctx->d_frame.fmt->color) &&
 	    (ctrl->id == V4L2_CID_HFLIP ||
 	     ctrl->id == V4L2_CID_VFLIP ||
 	     ctrl->id == V4L2_CID_ROTATE))

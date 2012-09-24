@@ -964,7 +964,7 @@ static int sync_capture_fmt(struct fimc_ctx *ctx, struct v4l2_rect *r)
 	fmt->width  = r->width;
 	fmt->height = r->height;
 	max_w = ctx->scaler.enabled ? plim->scaler_en_w : plim->scaler_dis_w;
-	max_h = fimc_fmt_is_jpeg(frame->fmt->color) ? 0xFFFF : plim->in_rot_en_h;
+	max_h = fimc_fmt_is_user_defined(frame->fmt->color) ? 0xFFFF : plim->in_rot_en_h;
 
 	v4l_bound_align_image(&fmt->width, 16, max_w, 4,
 			      &fmt->height, 2, max_h, 1, 0);
@@ -976,7 +976,7 @@ static int sync_capture_fmt(struct fimc_ctx *ctx, struct v4l2_rect *r)
 	 *  If fimc destination is jpeg, sensor should be jpeg mbus code,
 	 *  and others should be yuv type although fimc'output is rgb.
 	 */
-	if (frame->fmt->fourcc == V4L2_PIX_FMT_JPEG)
+	if (fimc_jpeg_fourcc(frame->fmt->fourcc))
 		fmt->code = frame->fmt->mbus_code;
 	else
 		fmt->code = DEFAULT_ISP_PIXCODE;
@@ -1031,8 +1031,8 @@ static int sync_capture_fmt(struct fimc_ctx *ctx, struct v4l2_rect *r)
 	}
 
 	/* Color conversion to JPEG is not supported */
-	if (ctx->d_frame.fmt->color == S5P_FIMC_JPEG &&
-	    fmt->code != V4L2_MBUS_FMT_JPEG_1X8)
+	if (fimc_fmt_is_user_defined(ctx->d_frame.fmt->color) &&
+	    !fimc_user_defined_mbus_fmt(fmt->code))
 		return -EINVAL;
 	frame->f_width	= fmt->width;
 	frame->f_height = fmt->height;
@@ -1113,7 +1113,7 @@ static int fimc_cap_s_fmt_mplane(struct file *file, void *priv,
 	ret = sync_capture_fmt(ctx, &r);
 
 	/* Scaling is not supported with JPEG color format. */
-	ctx->scaler.enabled = !fimc_fmt_is_jpeg(ctx->d_frame.fmt->color);
+	ctx->scaler.enabled = !fimc_fmt_is_user_defined(ctx->d_frame.fmt->color);
 
 	return ret;
 }
@@ -1437,6 +1437,50 @@ static int fimc_cap_s_parm(struct file *file, void *fh,
 
 	return ret;
 }
+
+
+/**
+ * fimc_get_sensor_frame_desc - query the sensor for media bus frame parameters
+ * @sensor: pointer to the sensor subdev
+ * @plane_fmt: provides plane sizes corresponding to the frame layout entries
+ * @try: true to set the frame parameters, false to query only
+ *
+ * This function is used by this driver only for compressed/blob data formats.
+ */
+static int fimc_get_sensor_frame_desc(struct v4l2_subdev *sensor,
+				      struct v4l2_plane_pix_format *plane_fmt,
+				      unsigned int num_planes, bool try)
+{
+	struct v4l2_mbus_frame_desc fd;
+	int i, ret;
+
+	for (i = 0; i < num_planes; i++)
+		fd.entry[i].length = plane_fmt[i].sizeimage;
+
+	if (try)
+		ret = v4l2_subdev_call(sensor, pad, set_frame_desc, 0, &fd);
+	else
+		ret = v4l2_subdev_call(sensor, pad, get_frame_desc, 0, &fd);
+
+	if (ret < 0)
+		return ret;
+
+	if (num_planes != fd.num_entries)
+		return -EINVAL;
+
+	for (i = 0; i < num_planes; i++)
+		plane_fmt[i].sizeimage = fd.entry[i].length;
+
+	if (fd.entry[0].length > FIMC_MAX_JPEG_BUF_SIZE) {
+		v4l2_err(sensor->v4l2_dev,  "Unsupported buffer size: %u\n",
+			 fd.entry[0].length);
+
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 
 static const struct v4l2_ioctl_ops fimc_capture_ioctl_ops = {
 	.vidioc_querycap		= fimc_vidioc_querycap_capture,

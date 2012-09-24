@@ -157,6 +157,10 @@ static const struct s5p_csis_color_format s5p_csis_formats[] = {
 		.code		= V4L2_MBUS_FMT_SGRBG10_1X10,
 		.fmt_reg	= S5P_CSIS_CFG_FMT_RAW10,
 		.pix_hor_align	= 1,
+	}, {
+		.code = V4L2_MBUS_FMT_S5C_UYVY_JPEG_1X8,
+		.fmt_reg = S5P_CSIS_CFG_FMT_USER(1),
+		.pix_hor_align = 1,
 	},
 };
 
@@ -210,7 +214,7 @@ static int s5p_csis_set_format(struct s5p_csis_state *state)
 	u32 cfg;
 	int i = ARRAY_SIZE(s5p_csis_formats);
 
-	v4l2_dbg(1, debug, &state->sd, "fmt: %d, %d x %d\n",
+	v4l2_dbg(1, debug, &state->sd, "fmt: %#x, %d x %d\n",
 		 state->fmt.code, state->fmt.width, state->fmt.height);
 
 	/* Color format */

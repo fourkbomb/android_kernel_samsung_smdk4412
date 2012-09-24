@@ -67,6 +67,8 @@
 #define SCALER_MAX_VRATIO	64
 #define DMA_MIN_SIZE		8
 #define DEFAULT_ISP_PIXCODE	V4L2_MBUS_FMT_YUYV8_2X8
+#define FIMC_MAX_JPEG_BUF_SIZE (10 * SZ_1M)
+#define FIMC_MAX_PLANES		3
 
 #define CAM_SRC_CLOCK		"xusbxti"
 #define CLK_NAME_CAM0		"sclk_cam0"
@@ -141,11 +143,12 @@ enum fimc_color_fmt {
 	S5P_FIMC_CBYCRY422,
 	S5P_FIMC_CRYCBY422,
 	S5P_FIMC_YCBCR444_LOCAL,
-	S5P_FIMC_JPEG = 0x40,
+	S5P_FIMC_JPEG = 0x80,
+	S5P_FIMC_YUYV_JPEG = 0x100,
 };
 
+#define fimc_fmt_is_user_defined(x) (!!((x) & 0x180))
 #define fimc_fmt_is_rgb(x) (!!((x) & 0x10))
-#define fimc_fmt_is_jpeg(x) (!!((x) & 0x40))
 
 /* Cb/Cr chrominance components order for 2 plane Y/CbCr 4:2:2 formats. */
 #define	S5P_FIMC_LSB_CRCB	S5P_CIOCTRL_ORDER422_2P_LSB_CRCB
@@ -196,6 +199,7 @@ enum fimc_color_fmt {
  * @memplanes: number of physically non-contiguous data planes
  * @colplanes: number of physically contiguous data planes
  * @depth: per plane driver's private 'number of bits per pixel'
+ * @mdataplanes: bitmask indicating meta data plane(s), (1 << plane_no)
  * @flags: flags indicating which operation mode format applies to
  */
 struct fimc_fmt {
@@ -206,9 +210,11 @@ struct fimc_fmt {
 	u16	memplanes;
 	u16	colplanes;
 	u8	depth[VIDEO_MAX_PLANES];
+	u16 mdataplanes;
 	u16	flags;
 #define FMT_FLAGS_CAM	(1 << 0)
 #define FMT_FLAGS_M2M	(1 << 1)
+#define FMT_FLAGS_COMPRESSED (1 << 2)
 };
 
 /**
@@ -327,7 +333,7 @@ struct fimc_frame {
 	u32	width;
 	u32	height;
 	u8	alpha;
-	unsigned long		payload[VIDEO_MAX_PLANES];
+	unsigned int		payload[VIDEO_MAX_PLANES];
 	struct fimc_addr	paddr;
 	struct fimc_dma_offset	dma_offset;
 	struct fimc_fmt		*fmt;
@@ -607,6 +613,18 @@ static inline int tiled_fmt(struct fimc_fmt *fmt)
 	return fmt->fourcc == V4L2_PIX_FMT_NV12MT;
 }
 
+static inline bool fimc_jpeg_fourcc(u32 pixelformat)
+{
+	return (pixelformat == V4L2_PIX_FMT_JPEG ||
+		pixelformat == V4L2_PIX_FMT_S5C_UYVY_JPG);
+}
+
+static inline bool fimc_user_defined_mbus_fmt(u32 code)
+{
+	return (code == V4L2_MBUS_FMT_JPEG_1X8 ||
+		code == V4L2_MBUS_FMT_S5C_UYVY_JPEG_1X8);
+}
+
 static inline void fimc_hw_clear_irq(struct fimc_dev *dev)
 {
 	u32 cfg = readl(dev->regs + S5P_CIGCTRL);
@@ -690,18 +708,30 @@ static inline struct fimc_frame *ctx_get_frame(struct fimc_ctx *ctx,
 }
 
 /* Return an index to the buffer actually being written. */
-static inline u32 fimc_hw_get_frame_index(struct fimc_dev *dev)
+static inline s32 fimc_hw_get_frame_index(struct fimc_dev *dev)
 {
-	u32 reg;
+	s32 reg;
 
 	if (dev->variant->has_cistatus2) {
-		reg = readl(dev->regs + S5P_CISTATUS2) & 0x3F;
-		return reg > 0 ? --reg : reg;
+		reg = readl(dev->regs + S5P_CISTATUS2) & 0x3f;
+		return reg - 1;
 	} else {
 		reg = readl(dev->regs + S5P_CISTATUS);
 		return (reg & S5P_CISTATUS_FRAMECNT_MASK) >>
 			S5P_CISTATUS_FRAMECNT_SHIFT;
 	}
+}
+
+/* Return an index to the buffer being written previously. */
+static inline s32 fimc_hw_get_prev_frame_index(struct fimc_dev *dev)
+{
+	s32 reg;
+
+	if (!dev->variant->has_cistatus2)
+		return -1;
+
+	reg = readl(dev->regs + S5P_CISTATUS2);
+	return ((reg >> 7) & 0x3f) - 1;
 }
 
 /* -----------------------------------------------------*/

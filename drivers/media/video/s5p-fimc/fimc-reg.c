@@ -680,7 +680,7 @@ int fimc_hw_set_camera_source(struct fimc_dev *fimc,
 				cfg |= S5P_CISRCFMT_ITU601_16BIT;
 		} /* else defaults to ITU-R BT.656 8-bit */
 	} else if (cam->bus_type == FIMC_MIPI_CSI2) {
-		if (fimc_fmt_is_jpeg(f->fmt->color) || fimc->vid_cap.is.sd
+		if (fimc_fmt_is_user_defined(f->fmt->color) || fimc->vid_cap.is.sd
 						|| fimc->vid_cap.is.camcording)
 			cfg |= S5P_CISRCFMT_ITU601_8BIT;
 	}
@@ -748,6 +748,7 @@ int fimc_hw_set_camera_type(struct fimc_dev *fimc,
 				tmp = S5P_CSIIMGFMT_YCBCR422_8BIT;
 				break;
 			case V4L2_MBUS_FMT_JPEG_1X8:
+			case V4L2_MBUS_FMT_S5C_UYVY_JPEG_1X8:
 				tmp = S5P_CSIIMGFMT_USER(1);
 				cfg |= S5P_CIGCTRL_CAM_JPEG;
 				break;
