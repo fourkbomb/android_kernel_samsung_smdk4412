@@ -418,6 +418,7 @@ struct v4l2_pix_format {
 /* RGB x:10:10:10 */
 #define V4L2_PIX_FMT_INTC_RGB30	v4l2_fourcc('R', 'G', 'B', '0')
 #define V4L2_PIX_FMT_SE401      v4l2_fourcc('S', '4', '0', '1') /* se401 janggu compressed rgb */
+#define V4L2_PIX_FMT_S5C_UYVY_JPG v4l2_fourcc('S', '5', 'C', 'I') /* S5C73M3 interleaved UYVY/JPEG */
 
 /*
  *	F O R M A T   E N U M E R A T I O N
