@@ -2472,7 +2472,7 @@ wl_iw_set_encodeext(
 
 		/* copy the raw hex key to the appropriate format */
 		for (j = 0; j < (WSEC_MAX_PSK_LEN / 2); j++) {
-			sprintf(charptr, "%02x", iwe->key[j]);
+			sprintf(charptr, "%02hhx", iwe->key[j]);
 			charptr += 2;
 		}
 		len = strlen(keystring);

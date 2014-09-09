@@ -864,6 +864,7 @@ DECLARE_MAP_API(4,  3, 2,  7U, 0x000F) /* setbit4() and getbit4() */
 
 /* use for direct output of MAC address in printf etc */
 #define MACF				"%02x:%02x:%02x:%02x:%02x:%02x"
+#define MACF_U				"%02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX" /* upper case hex */
 #define ETHERP_TO_MACF(ea)	((struct ether_addr *) (ea))->octet[0], \
 							((struct ether_addr *) (ea))->octet[1], \
 							((struct ether_addr *) (ea))->octet[2], \
