@@ -466,7 +466,7 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 }
 EXPORT_SYMBOL(ion_alloc);
 
-#ifdef CONFIG_ION_EXYNOS
+#ifdef CONFIG_ION_EXYNOS_BOO
 struct ion_handle *ion_exynos_get_user_pages(struct ion_client *client,
 			unsigned long uvaddr, size_t len, unsigned int flags)
 {
