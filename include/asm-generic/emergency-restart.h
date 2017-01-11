@@ -4,7 +4,7 @@
 static inline void machine_emergency_restart(void)
 {
 #ifdef CONFIG_ANDROID_WIP
-	machine_restart("emergency");
+	machine_restart("recovery");
 #else
 	machine_restart(NULL);
 #endif
