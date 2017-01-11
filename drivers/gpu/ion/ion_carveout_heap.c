@@ -107,6 +107,7 @@ void ion_carveout_heap_unmap_dma(struct ion_heap *heap,
 				 struct ion_buffer *buffer)
 {
 	sg_free_table(buffer->sg_table);
+	kfree(buffer->sg_table);
 }
 
 void *ion_carveout_heap_map_kernel(struct ion_heap *heap,
@@ -117,14 +118,14 @@ void *ion_carveout_heap_map_kernel(struct ion_heap *heap,
 	if (buffer->flags & ION_FLAG_CACHED)
 		mtype = MT_MEMORY;
 
-	return __arch_ioremap(buffer->priv_phys, buffer->size,
+	return __arm_ioremap(buffer->priv_phys, buffer->size,
 			      mtype);
 }
 
 void ion_carveout_heap_unmap_kernel(struct ion_heap *heap,
 				    struct ion_buffer *buffer)
 {
-	__arch_iounmap(buffer->vaddr);
+	__arm_iounmap(buffer->vaddr);
 	buffer->vaddr = NULL;
 	return;
 }

@@ -11,6 +11,8 @@
 #ifndef __ASM_PLAT_IOVMM_H
 #define __ASM_PLAT_IOVMM_H
 
+#define IOVMM_MAX_NUM_ID 6
+
 #ifdef CONFIG_DRM_EXYNOS_IOMMU
 #ifdef CONFIG_IOVMM
 void *iovmm_setup(unsigned long s_iova, unsigned long size);
