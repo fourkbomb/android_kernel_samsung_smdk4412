@@ -61,7 +61,7 @@ static int battery_get_lpm_state(char *str)
 	if (strncmp(str, "1", 1) == 0)
 		lpcharge = 1;
 
-	pr_info("%s: Low power charging mode: %d\n", __func__, lpcharge);
+	pr_debug("%s: Low power charging mode: %d\n", __func__, lpcharge);
 
 	return lpcharge;
 }
@@ -73,7 +73,7 @@ static int bootloader_get_lpm_state(char *str)
 	if (strncmp(str, "charger", 7) == 0)
 		lpcharge = 1;
 
-	pr_info("%s: Low power charging mode: %d\n", __func__, lpcharge);
+	pr_debug("%s: Low power charging mode: %d\n", __func__, lpcharge);
 
 	return lpcharge;
 }
@@ -108,7 +108,7 @@ static int battery_get_cable(struct battery_info *info)
 						ONLINE_TYPE_SUB_SHIFT);
 		info->cable_pwr_type = ((online_val & ONLINE_TYPE_PWR_MASK) >>
 						ONLINE_TYPE_PWR_SHIFT);
-		pr_info("%s: main(%d), sub(%d), pwr(%d)\n", __func__,
+		pr_debug("%s: main(%d), sub(%d), pwr(%d)\n", __func__,
 						cable_type,
 						info->cable_sub_type,
 						info->cable_pwr_type);
@@ -154,7 +154,7 @@ static int battery_get_temper(struct battery_info *info)
 				adc = s3c_adc_read(info->adc_client,
 							info->pdata->temper_ch);
 				if (adc < 0) {
-					pr_info("%s: adc read(%d), retry(%d)",
+					pr_debug("%s: adc read(%d), retry(%d)",
 						__func__, adc, retry_cnt++);
 					msleep(ADC_ERR_DELAY);
 				}
@@ -178,7 +178,7 @@ static int battery_get_temper(struct battery_info *info)
 			(adc_total - adc_max - adc_min) / (CNT_ADC_SAMPLE - 2);
 
 		if (info->battery_temper_adc < 0) {
-			pr_info("%s: adc read error(%d), temper set as 30.0",
+			pr_debug("%s: adc read error(%d), temper set as 30.0",
 					__func__, info->battery_temper_adc);
 			temper = 300;
 		} else {
@@ -195,7 +195,7 @@ static int battery_get_temper(struct battery_info *info)
 		break;
 	case TEMPER_UNKNOWN:
 	default:
-		pr_info("%s: invalid temper src(%d)\n", __func__,
+		pr_debug("%s: invalid temper src(%d)\n", __func__,
 					info->pdata->temper_src);
 		temper = 300;
 		break;
@@ -223,7 +223,7 @@ static int battery_set_adc_power(struct battery_info *info, bool en)
 	is_en = regulator_is_enabled(regulator);
 
 	if (is_en != en)
-		pr_info("%s: %s: is_en(%d), en(%d)\n", __func__,
+		pr_debug("%s: %s: is_en(%d), en(%d)\n", __func__,
 					ADC_REG_NAME, is_en, en);
 
 	if (!is_en && en)
@@ -268,7 +268,7 @@ static int battery_get_vf(struct battery_info *info)
 		present = INRANGE(adc, info->pdata->vf_det_th_l,
 					info->pdata->vf_det_th_h);
 		if (!present)
-			pr_info("%s: adc(%d), out of range(%d ~ %d)\n",
+			pr_debug("%s: adc(%d), out of range(%d ~ %d)\n",
 						__func__, adc,
 						info->pdata->vf_det_th_l,
 						info->pdata->vf_det_th_h);
@@ -305,7 +305,7 @@ static int battery_get_curr_avg(struct battery_info *info)
 		(info->battery_vcell < info->pdata->voltage_min) &&
 		(info->battery_v_diff < 0) &&
 		(info->input_current < info->pdata->chg_curr_ta)) {
-		pr_info("%s: soc(%d), vol(%d < %d), diff(%d), in_curr(%d)\n",
+		pr_debug("%s: soc(%d), vol(%d < %d), diff(%d), in_curr(%d)\n",
 					__func__, info->battery_soc,
 					(info->battery_vcell / 1000),
 					(info->pdata->voltage_min / 1000),
@@ -330,7 +330,7 @@ int battery_get_info(struct battery_info *info,
 	/* do nothing */
 #else
 	if (info->battery_error_test) {
-		pr_info("%s: in test mode(%d), do not update\n", __func__,
+		pr_debug("%s: in test mode(%d), do not update\n", __func__,
 			info->battery_error_test);
 		return -EPERM;
 	}
@@ -428,7 +428,7 @@ void battery_update_info(struct battery_info *info)
 	/* Fuelgauge power off state */
 	if ((info->cable_type != POWER_SUPPLY_TYPE_BATTERY) &&
 	    (info->battery_present == 0) && (info->monitor_count)) {
-		pr_info("%s: abnormal fuelgauge power state\n", __func__);
+		pr_debug("%s: abnormal fuelgauge power state\n", __func__);
 		goto update_finish;
 	}
 
@@ -439,7 +439,7 @@ void battery_update_info(struct battery_info *info)
 
 	if ((info->cable_type == POWER_SUPPLY_TYPE_BATTERY) &&
 		(info->battery_soc < value.intval) && (info->monitor_count))
-		pr_info("%s: new soc(%d) is bigger than prev soc(%d)"
+		pr_debug("%s: new soc(%d) is bigger than prev soc(%d)"
 					" in discharging state\n", __func__,
 					value.intval, info->battery_soc);
 	else
@@ -485,23 +485,23 @@ update_finish:
 #endif
 		break;
 	case 1:
-		pr_info("%s: error test: full charged\n", __func__);
+		pr_debug("%s: error test: full charged\n", __func__);
 		info->charge_real_state = POWER_SUPPLY_STATUS_FULL;
 		info->battery_vcell = info->pdata->voltage_max;
 		break;
 	case 2:
-		pr_info("%s: error test: freezed\n", __func__);
+		pr_debug("%s: error test: freezed\n", __func__);
 		info->battery_temper = info->pdata->freeze_stop_temp - 10;
 		break;
 	case 3:
-		pr_info("%s: error test: overheated\n", __func__);
+		pr_debug("%s: error test: overheated\n", __func__);
 		info->battery_temper = info->pdata->overheat_stop_temp + 10;
 		break;
 	case 4:
-		pr_info("%s: error test: ovp\n", __func__);
+		pr_debug("%s: error test: ovp\n", __func__);
 		break;
 	case 5:
-		pr_info("%s: error test: vf error\n", __func__);
+		pr_debug("%s: error test: vf error\n", __func__);
 		info->battery_present = 0;
 		break;
 #if defined(CONFIG_TARGET_LOCALE_KOR)
@@ -510,7 +510,7 @@ update_finish:
 		break;
 #endif
 	default:
-		pr_info("%s: error test: unknown state\n", __func__);
+		pr_debug("%s: error test: unknown state\n", __func__);
 		break;
 	}
 
@@ -563,7 +563,7 @@ static void battery_event_alarm(struct alarm *alarm)
 {
 	struct battery_info *info = container_of(alarm, struct battery_info,
 								 event_alarm);
-	pr_info("%s: exit event state, %ds gone\n", __func__,
+	pr_debug("%s: exit event state, %ds gone\n", __func__,
 				info->pdata->event_time);
 
 	/* clear event state */
@@ -588,20 +588,20 @@ void battery_event_control(struct battery_info *info)
 	pr_debug("%s\n", __func__);
 
 	if (info->event_type) {
-		pr_info("%s: in event state(%d), type(0x%04x)\n", __func__,
+		pr_debug("%s: in event state(%d), type(0x%04x)\n", __func__,
 					info->event_state, info->event_type);
 
 		for (event_num = 0; event_num < EVENT_TYPE_MAX; event_num++) {
 			if (info->event_type & (1 << event_num))
-				pr_info("%s: %d: %s\n", __func__, event_num,
+				pr_debug("%s: %d: %s\n", __func__, event_num,
 						event_type_name[event_num]);
 		}
 
 		if (info->event_state == EVENT_STATE_SET) {
-			pr_info("%s: event already set, event(%d, 0x%04x)\n",
+			pr_debug("%s: event already set, event(%d, 0x%04x)\n",
 				__func__, info->event_state, info->event_type);
 		} else if (info->event_state == EVENT_STATE_IN_TIMER) {
-			pr_info("%s: cancel event timer\n", __func__);
+			pr_debug("%s: cancel event timer\n", __func__);
 
 			alarm_cancel(&info->event_alarm);
 
@@ -610,7 +610,7 @@ void battery_event_control(struct battery_info *info)
 			wake_lock(&info->monitor_wake_lock);
 			schedule_work(&info->monitor_work);
 		} else {
-			pr_info("%s: enter event state(%d, 0x%04x)\n",
+			pr_debug("%s: enter event state(%d, 0x%04x)\n",
 				__func__, info->event_state, info->event_type);
 
 			info->event_state = EVENT_STATE_SET;
@@ -619,11 +619,11 @@ void battery_event_control(struct battery_info *info)
 			schedule_work(&info->monitor_work);
 		}
 	} else {
-		pr_info("%s: clear event type(0x%04x), wait %ds\n", __func__,
+		pr_debug("%s: clear event type(0x%04x), wait %ds\n", __func__,
 				info->event_type, info->pdata->event_time);
 
 		if (info->event_state == EVENT_STATE_SET) {
-			pr_info("%s: start event timer\n", __func__);
+			pr_debug("%s: start event timer\n", __func__);
 			info->last_poll = alarm_get_elapsed_realtime();
 
 			interval = ktime_set(info->pdata->event_time, 0);
@@ -635,7 +635,7 @@ void battery_event_control(struct battery_info *info)
 
 			info->event_state = EVENT_STATE_IN_TIMER;
 		} else {
-			pr_info("%s: event already clear, event(%d, 0x%04x)\n",
+			pr_debug("%s: event already clear, event(%d, 0x%04x)\n",
 				__func__, info->event_state, info->event_type);
 		}
 	}
@@ -710,7 +710,7 @@ static void battery_monitor_interval(struct battery_info *info)
 
 	/* apply monitor interval weight */
 	if (info->monitor_weight != 100) {
-		pr_info("%s: apply weight(%d), %d -> %d\n", __func__,
+		pr_debug("%s: apply weight(%d), %d -> %d\n", __func__,
 			info->monitor_weight, info->monitor_interval,
 			(info->monitor_interval * info->monitor_weight / 100));
 		info->monitor_interval *= info->monitor_weight;
@@ -740,7 +740,7 @@ static bool battery_recharge_cond(struct battery_info *info)
 	}
 
 	if (info->battery_vcell < info->pdata->recharge_voltage) {
-		pr_info("%s: recharge state, vcell(%d ? %d)\n", __func__,
+		pr_debug("%s: recharge state, vcell(%d ? %d)\n", __func__,
 			info->battery_vcell, info->pdata->recharge_voltage);
 		return true;
 	} else
@@ -785,7 +785,7 @@ static bool battery_abstimer_cond(struct battery_info *info)
 
 	if ((current_time.tv_sec - info->charge_start_time) >
 	    abstimer_duration) {
-		pr_info("%s: abstimer state, t(%d - %d ?? %d)\n", __func__,
+		pr_debug("%s: abstimer state, t(%d - %d ?? %d)\n", __func__,
 			(int)current_time.tv_sec, info->charge_start_time,
 							abstimer_duration);
 		info->abstimer_state = true;
@@ -828,7 +828,7 @@ static bool battery_fullcharged_cond(struct battery_info *info)
 					POWER_SUPPLY_PROP_CHARGE_FULL);
 			if (!full_state) {
 				if (info->full_charged_state != STATUS_1ST_FULL)
-					pr_info("%s: 1st full by current\n",
+					pr_debug("%s: 1st full by current\n",
 								__func__);
 
 				info->full_charged_state = STATUS_1ST_FULL;
@@ -836,7 +836,7 @@ static bool battery_fullcharged_cond(struct battery_info *info)
 				return false;
 			} else {
 				if (info->full_charged_state != STATUS_2ND_FULL)
-					pr_info("%s: 2nd full by timer\n",
+					pr_debug("%s: 2nd full by timer\n",
 								__func__);
 
 				info->full_charged_state = STATUS_2ND_FULL;
@@ -848,7 +848,7 @@ static bool battery_fullcharged_cond(struct battery_info *info)
 			return true;
 #endif
 		} else {
-			pr_info("%s: not real full charged, v(%d), s(%d)\n",
+			pr_debug("%s: not real full charged, v(%d), s(%d)\n",
 					__func__, info->battery_vcell,
 						info->battery_soc);
 
@@ -887,7 +887,7 @@ static bool battery_vf_cond(struct battery_info *info)
 #else
 	/* jig detect by MUIC */
 	if (is_jig_attached == JIG_ON) {
-		pr_info("%s: JIG ON, do not check\n", __func__);
+		pr_debug("%s: JIG ON, do not check\n", __func__);
 		info->vf_state = false;
 		return false;
 	}
@@ -905,7 +905,7 @@ static bool battery_vf_cond(struct battery_info *info)
 		battery_get_info(info, POWER_SUPPLY_PROP_PRESENT);
 
 	if (info->battery_present == 0) {
-		pr_info("%s: battery(%d) is not detected\n", __func__,
+		pr_debug("%s: battery(%d) is not detected\n", __func__,
 						info->battery_present);
 		info->vf_state = true;
 	} else {
@@ -930,7 +930,7 @@ static bool battery_health_cond(struct battery_info *info)
 
 	/* temperature error is higher priority */
 	if (info->temper_state == true) {
-		pr_info("%s: temper stop state, do not check\n", __func__);
+		pr_debug("%s: temper stop state, do not check\n", __func__);
 		return false;
 	}
 
@@ -939,19 +939,19 @@ static bool battery_health_cond(struct battery_info *info)
 		battery_get_info(info, POWER_SUPPLY_PROP_HEALTH);
 
 	if (info->battery_health == POWER_SUPPLY_HEALTH_UNSPEC_FAILURE) {
-		pr_info("%s: battery unspec(%d)\n", __func__,
+		pr_debug("%s: battery unspec(%d)\n", __func__,
 					info->battery_health);
 		info->health_state = true;
 	} else if (info->battery_health == POWER_SUPPLY_HEALTH_DEAD) {
-		pr_info("%s: battery dead(%d)\n", __func__,
+		pr_debug("%s: battery dead(%d)\n", __func__,
 					info->battery_health);
 		info->health_state = true;
 	} else if (info->battery_health == POWER_SUPPLY_HEALTH_OVERVOLTAGE) {
-		pr_info("%s: battery overvoltage(%d)\n", __func__,
+		pr_debug("%s: battery overvoltage(%d)\n", __func__,
 					info->battery_health);
 		info->health_state = true;
 	} else if (info->battery_health == POWER_SUPPLY_HEALTH_UNDERVOLTAGE) {
-		pr_info("%s: battery undervoltage(%d)\n", __func__,
+		pr_debug("%s: battery undervoltage(%d)\n", __func__,
 					info->battery_health);
 		info->health_state = true;
 	} else {
@@ -982,7 +982,7 @@ static bool battery_temper_cond(struct battery_info *info)
 		ovh_recover = info->pdata->event_overheat_recovery_temp;
 		frz_stop = info->pdata->event_freeze_stop_temp;
 		frz_recover = info->pdata->event_freeze_recovery_temp;
-		pr_info("%s: ovh(%d/%d), frz(%d/%d), lpm(%d), "
+		pr_debug("%s: ovh(%d/%d), frz(%d/%d), lpm(%d), "
 			"event(%d, 0x%04x)\n", __func__,
 			ovh_stop, ovh_recover, frz_stop, frz_recover,
 			info->lpm_state, info->event_state, info->event_type);
@@ -1013,11 +1013,11 @@ static bool battery_temper_cond(struct battery_info *info)
 			 info->battery_temper, frz_stop, ovh_stop);
 
 		if (info->battery_temper >= ovh_stop) {
-			pr_info("%s: stop by overheated, t(%d ? %d)\n",
+			pr_debug("%s: stop by overheated, t(%d ? %d)\n",
 				__func__, info->battery_temper, ovh_stop);
 			info->overheated_state = true;
 		} else if (info->battery_temper <= frz_stop) {
-			pr_info("%s: stop by freezed, t(%d ? %d)\n",
+			pr_debug("%s: stop by freezed, t(%d ? %d)\n",
 				__func__, info->battery_temper, frz_stop);
 			info->freezed_state = true;
 		} else
@@ -1030,16 +1030,16 @@ static bool battery_temper_cond(struct battery_info *info)
 
 		if ((info->overheated_state == true) &&
 		    (info->battery_temper <= ovh_recover)) {
-			pr_info("%s: recovery from overheated, t(%d ? %d)\n",
+			pr_debug("%s: recovery from overheated, t(%d ? %d)\n",
 				__func__, info->battery_temper, ovh_recover);
 			info->overheated_state = false;
 		} else if ((info->freezed_state == true) &&
 			   (info->battery_temper >= frz_recover)) {
-			pr_info("%s: recovery from freezed, t(%d ? %d)\n",
+			pr_debug("%s: recovery from freezed, t(%d ? %d)\n",
 				__func__, info->battery_temper, frz_recover);
 			info->freezed_state = false;
 		} else
-			pr_info("%s: charge stopped, t(%d)\n", __func__,
+			pr_debug("%s: charge stopped, t(%d)\n", __func__,
 							info->battery_temper);
 	}
 
@@ -1099,7 +1099,7 @@ static void battery_charge_control(struct battery_info *info,
 		}
 
 		chg_curr = MIN(chg_curr, info->siop_charge_current);
-		pr_info("%s: siop state, level(%d), cc(%d)\n",
+		pr_debug("%s: siop state, level(%d), cc(%d)\n",
 				__func__, info->siop_lv, chg_curr);
 	}
 
@@ -1159,14 +1159,14 @@ charge_state_con:
 		battery_control_info(info, POWER_SUPPLY_PROP_STATUS, ENABLE);
 
 		info->charge_start_time = current_time.tv_sec;
-		pr_info("%s: charge enabled, current as %d/%dmA @%d\n",
+		pr_debug("%s: charge enabled, current as %d/%dmA @%d\n",
 			__func__, info->charge_current, info->input_current,
 			info->charge_start_time);
 
 		charge_state = battery_get_info(info, POWER_SUPPLY_PROP_STATUS);
 
 		if (charge_state != POWER_SUPPLY_STATUS_CHARGING) {
-			pr_info("%s: force set v_state as charging\n",
+			pr_debug("%s: force set v_state as charging\n",
 								__func__);
 			info->charge_real_state = charge_state;
 			info->charge_virt_state = POWER_SUPPLY_STATUS_CHARGING;
@@ -1179,7 +1179,7 @@ charge_state_con:
 	} else if ((chg_curr == 0) && (info->charge_start_time != 0)) {
 		battery_control_info(info, POWER_SUPPLY_PROP_STATUS, DISABLE);
 
-		pr_info("%s: charge disabled, current as %d/%dmA @%d\n",
+		pr_debug("%s: charge disabled, current as %d/%dmA @%d\n",
 			__func__, info->charge_current, info->input_current,
 			(int)current_time.tv_sec);
 
@@ -1188,7 +1188,7 @@ charge_state_con:
 		charge_state = battery_get_info(info, POWER_SUPPLY_PROP_STATUS);
 
 		if (charge_state != POWER_SUPPLY_STATUS_DISCHARGING) {
-			pr_info("%s: force set v_state as discharging\n",
+			pr_debug("%s: force set v_state as discharging\n",
 								__func__);
 			info->charge_real_state = charge_state;
 			info->charge_virt_state =
@@ -1302,7 +1302,7 @@ static void battery_interval_calulation(struct battery_info *info)
 
 	/* ambiguous state */
 	if (info->ambiguous_state == true) {
-		pr_info("%s: ambiguous state\n", __func__);
+		pr_debug("%s: ambiguous state\n", __func__);
 		info->monitor_mode = MONITOR_EMER_LV2;
 		wake_lock(&info->emer_wake_lock);
 		return;
@@ -1313,7 +1313,7 @@ static void battery_interval_calulation(struct battery_info *info)
 
 	/* prevent critical low raw soc factor */
 	if (info->battery_raw_soc < 100) {
-		pr_info("%s: soc(%d) too low state\n", __func__,
+		pr_debug("%s: soc(%d) too low state\n", __func__,
 						info->battery_raw_soc);
 		info->monitor_mode = MONITOR_EMER_LV2;
 		wake_lock(&info->emer_wake_lock);
@@ -1328,7 +1328,7 @@ static void battery_interval_calulation(struct battery_info *info)
 	if ((info->battery_vcell <
 				(info->pdata->voltage_min - PWROFF_MARGIN)) ||
 		(info->battery_vfocv < info->pdata->voltage_min)) {
-		pr_info("%s: voltage(%d) too low state\n", __func__,
+		pr_debug("%s: voltage(%d) too low state\n", __func__,
 						info->battery_vcell);
 		info->monitor_mode = MONITOR_EMER_LV2;
 		wake_lock(&info->emer_wake_lock);
@@ -1352,7 +1352,7 @@ static void battery_interval_calulation(struct battery_info *info)
 				 info->pdata->overheat_stop_temp ||
 			info->battery_temper <=
 				info->pdata->freeze_stop_temp)) {
-			pr_info("%s : re-check temper condition\n", __func__);
+			pr_debug("%s : re-check temper condition\n", __func__);
 			info->monitor_mode = MONITOR_EMER_LV2;
 		}
 #endif
@@ -1376,7 +1376,7 @@ static void battery_interval_calulation(struct battery_info *info)
 
 	/* 5 times after boot, apply no interval (1 sec) */
 	 if (info->monitor_count < 5) {
-		pr_info("%s: now in booting, set 1s\n", __func__);
+		pr_debug("%s: now in booting, set 1s\n", __func__);
 		info->monitor_mode = MONITOR_EMER_LV1; /* dummy value */
 		return;
 	 }
@@ -1388,7 +1388,7 @@ static void battery_interval_calulation(struct battery_info *info)
 	if (info->battery_vcell < (info->pdata->voltage_min + 50000)) {
 		info->monitor_mode = MONITOR_EMER_LV1;
 		info->monitor_weight -= 30;
-		pr_info("%s: low v(%d), weight(%d)\n", __func__,
+		pr_debug("%s: low v(%d), weight(%d)\n", __func__,
 				info->battery_vcell, info->monitor_weight);
 	}
 
@@ -1402,11 +1402,11 @@ static void battery_interval_calulation(struct battery_info *info)
 	if ((info->battery_v_diff > 250000) ||
 		(info->battery_v_diff < -100000)) {
 		info->monitor_weight += (info->battery_v_diff / 10000);
-		pr_info("%s: v diff(%d), weight(%d)\n", __func__,
+		pr_debug("%s: v diff(%d), weight(%d)\n", __func__,
 			ABS(info->battery_v_diff), info->monitor_weight);
 	} else if ((ABS(info->battery_v_diff)) < 50000) {
 		info->monitor_weight += 20;
-		pr_info("%s: v diff(%d), weight(%d)\n", __func__,
+		pr_debug("%s: v diff(%d), weight(%d)\n", __func__,
 			ABS(info->battery_v_diff), info->monitor_weight);
 	}
 
@@ -1419,7 +1419,7 @@ static void battery_interval_calulation(struct battery_info *info)
 		(((info->battery_raw_soc % 100) > 90) &&
 					(info->battery_v_diff > 0))) {
 		info->monitor_weight -= 10;
-		pr_info("%s: raw soc(%d), weight(%d)\n", __func__,
+		pr_debug("%s: raw soc(%d), weight(%d)\n", __func__,
 			info->battery_raw_soc, info->monitor_weight);
 	}
 
@@ -1429,7 +1429,7 @@ static void battery_interval_calulation(struct battery_info *info)
 	 */
 	if (ABS(info->battery_r_s_delta) > 50) {
 		info->monitor_weight -= (ABS(info->battery_r_s_delta)) / 5;
-		pr_info("%s: raw soc delta(%d), weight(%d)\n", __func__,
+		pr_debug("%s: raw soc delta(%d), weight(%d)\n", __func__,
 			ABS(info->battery_r_s_delta), info->monitor_weight);
 	}
 
@@ -1440,7 +1440,7 @@ static void battery_interval_calulation(struct battery_info *info)
 	if ((info->battery_temper > (info->pdata->overheat_stop_temp - 50)) ||
 		(info->battery_temper < (info->pdata->freeze_stop_temp + 50))) {
 		info->monitor_weight -= 20;
-		pr_info("%s: temper(%d ? %d - %d), weight(%d)\n", __func__,
+		pr_debug("%s: temper(%d ? %d - %d), weight(%d)\n", __func__,
 					info->battery_temper,
 					(info->pdata->overheat_stop_temp - 50),
 					(info->pdata->freeze_stop_temp + 50),
@@ -1453,7 +1453,7 @@ static void battery_interval_calulation(struct battery_info *info)
 	 */
 	if (ABS(info->battery_t_delta) > 20) {
 		info->monitor_weight -= 20;
-		pr_info("%s: temper delta(%d), weight(%d)\n", __func__,
+		pr_debug("%s: temper delta(%d), weight(%d)\n", __func__,
 			ABS(info->battery_t_delta), info->monitor_weight);
 	}
 
@@ -1461,7 +1461,7 @@ static void battery_interval_calulation(struct battery_info *info)
 	info->monitor_weight = MIN(MAX(info->monitor_weight, 10), 150);
 
 	if (info->monitor_weight != 100)
-		pr_info("%s: weight(%d)\n", __func__, info->monitor_weight);
+		pr_debug("%s: weight(%d)\n", __func__, info->monitor_weight);
 }
 
 static void battery_monitor_work(struct work_struct *work)
@@ -1474,7 +1474,7 @@ static void battery_monitor_work(struct work_struct *work)
 	mutex_lock(&info->mon_lock);
 
 	if (info->battery_test_mode) {
-		pr_info("%s: now in test mode, not updated\n", __func__);
+		pr_debug("%s: now in test mode, not updated\n", __func__);
 		goto monitor_finish;
 	}
 
@@ -1486,7 +1486,7 @@ static void battery_monitor_work(struct work_struct *work)
 	/* If battery is not connected, clear flag for charge scenario */
 	if ((battery_vf_cond(info) == true) ||
 		(battery_health_cond(info) == true)) {
-		pr_info("%s: battery error\n", __func__);
+		pr_debug("%s: battery error\n", __func__);
 		info->overheated_state = false;
 		info->freezed_state = false;
 		info->temper_state = false;
@@ -1496,14 +1496,14 @@ static void battery_monitor_work(struct work_struct *work)
 		info->recharge_phase = false;
 
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
-		pr_info("%s: not support standever...\n", __func__);
+		pr_debug("%s: not support standever...\n", __func__);
 		battery_error_control(info);
 #else
 		if (info->pdata->battery_standever == true) {
-			pr_info("%s: support standever\n", __func__);
+			pr_debug("%s: support standever\n", __func__);
 			schedule_work(&info->error_work);
 		} else {
-			pr_info("%s: not support standever\n", __func__);
+			pr_debug("%s: not support standever\n", __func__);
 			battery_charge_control(info, OFF_CURR, OFF_CURR);
 		}
 #endif
@@ -1542,27 +1542,27 @@ static void battery_monitor_work(struct work_struct *work)
 	/* Below is charger is connected state */
 #if defined(CONFIG_TARGET_LOCALE_KOR)
 	if (info->errortest_stopcharging) {
-		pr_info("%s: charge stopped by error_test mode\n", __func__);
+		pr_debug("%s: charge stopped by error_test mode\n", __func__);
 		battery_charge_control(info, OFF_CURR, OFF_CURR);
 		goto monitor_finish;
 	}
 #endif
 
 	if (battery_temper_cond(info) == true) {
-		pr_info("%s: charge stopped by temperature\n", __func__);
+		pr_debug("%s: charge stopped by temperature\n", __func__);
 		battery_charge_control(info, OFF_CURR, OFF_CURR);
 		goto monitor_finish;
 	}
 
 	if (battery_fullcharged_cond(info) == true) {
-		pr_info("%s: full charged state\n", __func__);
+		pr_debug("%s: full charged state\n", __func__);
 		battery_charge_control(info, OFF_CURR, KEEP_CURR);
 		info->recharge_phase = true;
 		goto monitor_finish;
 	}
 
 	if (battery_abstimer_cond(info) == true) {
-		pr_info("%s: abstimer state\n", __func__);
+		pr_debug("%s: abstimer state\n", __func__);
 		battery_charge_control(info, OFF_CURR, OFF_CURR);
 		info->recharge_phase = true;
 		goto monitor_finish;
@@ -1570,7 +1570,7 @@ static void battery_monitor_work(struct work_struct *work)
 
 	if (info->recharge_phase == true) {
 		if (battery_recharge_cond(info) == true) {
-			pr_info("%s: recharge condition\n", __func__);
+			pr_debug("%s: recharge condition\n", __func__);
 			goto charge_ok;
 		} else {
 			pr_debug("%s: not recharge\n", __func__);
@@ -1623,7 +1623,7 @@ charge_ok:
 		muic_cb_typ = max77693_muic_get_charging_type();
 		switch (muic_cb_typ) {
 		case CABLE_TYPE_AUDIODOCK_MUIC:
-			pr_info("%s: audio dock, %d\n",
+			pr_debug("%s: audio dock, %d\n",
 					__func__, DOCK_TYPE_AUDIO_CURR);
 			battery_charge_control(info,
 						DOCK_TYPE_AUDIO_CURR,
@@ -1631,13 +1631,13 @@ charge_ok:
 			break;
 		case CABLE_TYPE_SMARTDOCK_TA_MUIC:
 			if (info->cable_sub_type == ONLINE_SUB_TYPE_SMART_OTG) {
-				pr_info("%s: smart dock ta & host, %d\n",
+				pr_debug("%s: smart dock ta & host, %d\n",
 					__func__, DOCK_TYPE_SMART_OTG_CURR);
 				battery_charge_control(info,
 						DOCK_TYPE_SMART_OTG_CURR,
 						DOCK_TYPE_SMART_OTG_CURR);
 			} else {
-				pr_info("%s: smart dock ta & no host, %d\n",
+				pr_debug("%s: smart dock ta & no host, %d\n",
 					__func__, DOCK_TYPE_SMART_NOTG_CURR);
 				battery_charge_control(info,
 						DOCK_TYPE_SMART_NOTG_CURR,
@@ -1645,7 +1645,7 @@ charge_ok:
 			}
 			break;
 		case CABLE_TYPE_SMARTDOCK_USB_MUIC:
-			pr_info("%s: smart dock usb(low), %d\n",
+			pr_debug("%s: smart dock usb(low), %d\n",
 					__func__, DOCK_TYPE_LOW_CURR);
 			info->online_prop = ONLINE_PROP_USB;
 			battery_charge_control(info,
@@ -1653,7 +1653,7 @@ charge_ok:
 						DOCK_TYPE_LOW_CURR);
 			break;
 		default:
-			pr_info("%s: general dock, %d\n",
+			pr_debug("%s: general dock, %d\n",
 					__func__, info->pdata->chg_curr_dock);
 		battery_charge_control(info,
 			info->pdata->chg_curr_dock,
@@ -1690,7 +1690,7 @@ monitor_finish:
 
 	power_supply_changed(&info->psy_bat);
 
-	pr_info("[%d] bat: s(%d, %d), v(%d, %d), "
+	pr_debug("[%d] bat: s(%d, %d), v(%d, %d), "
 		"t(%d.%d), "
 		"cs(%d, %d), cb(%d), cr(%d, %d)",
 		++info->monitor_count,
@@ -1729,7 +1729,7 @@ monitor_finish:
 
 	/* check current_avg */
 	if (info->charge_current_avg < 0)
-		pr_info("%s: charging but discharging, power off\n", __func__);
+		pr_debug("%s: charging but discharging, power off\n", __func__);
 
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
 	/* prevent suspend for ui-update */
@@ -1738,7 +1738,7 @@ monitor_finish:
 		info->prev_charge_virt_state != info->charge_virt_state ||
 		info->prev_battery_soc != info->battery_soc) {
 		/* TBD : timeout value */
-		pr_info("%s : update wakelock (%d)\n", __func__, 3 * HZ);
+		pr_debug("%s : update wakelock (%d)\n", __func__, 3 * HZ);
 		wake_lock_timeout(&info->update_wake_lock, 3 * HZ);
 	}
 
@@ -1751,7 +1751,7 @@ monitor_finish:
 	/* if cable is detached in lpm, guarantee some secs for playlpm */
 	if ((info->lpm_state == true) &&
 		(info->cable_type == POWER_SUPPLY_TYPE_BATTERY)) {
-		pr_info("%s: lpm with battery, maybe power off\n", __func__);
+		pr_debug("%s: lpm with battery, maybe power off\n", __func__);
 		wake_lock_timeout(&info->monitor_wake_lock, 10 * HZ);
 	} else
 		wake_lock_timeout(&info->monitor_wake_lock, HZ);
@@ -1767,12 +1767,12 @@ static void battery_error_work(struct work_struct *work)
 						 error_work);
 	int err_cnt;
 	int old_vcell, new_vcell, vcell_diff;
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	mutex_lock(&info->err_lock);
 
 	if ((info->vf_state == true) || (info->health_state == true)) {
-		pr_info("%s: battery error state\n", __func__);
+		pr_debug("%s: battery error state\n", __func__);
 		old_vcell = info->battery_vcell;
 		new_vcell = 0;
 		for (err_cnt = 1; err_cnt <= VF_CHECK_COUNT; err_cnt++) {
@@ -1780,7 +1780,7 @@ static void battery_error_work(struct work_struct *work)
 			/* FIXME: fix P11 build error temporarily */
 #else
 			if (is_jig_attached == JIG_ON) {
-				pr_info("%s: JIG detected, return\n", __func__);
+				pr_debug("%s: JIG detected, return\n", __func__);
 				mutex_unlock(&info->err_lock);
 				return;
 			}
@@ -1789,36 +1789,36 @@ static void battery_error_work(struct work_struct *work)
 				battery_get_info(info,
 					POWER_SUPPLY_PROP_PRESENT);
 			if (info->battery_present == 0) {
-				pr_info("%s: battery still error(%d)\n",
+				pr_debug("%s: battery still error(%d)\n",
 						__func__, err_cnt);
 				msleep(VF_CHECK_DELAY);
 			} else {
-				pr_info("%s: battery detect ok, "
+				pr_debug("%s: battery detect ok, "
 						"check soc\n", __func__);
 				new_vcell = battery_get_info(info,
 					POWER_SUPPLY_PROP_VOLTAGE_NOW);
 				vcell_diff = abs(old_vcell - new_vcell);
-				pr_info("%s: check vcell: %d -> %d, diff: %d\n",
+				pr_debug("%s: check vcell: %d -> %d, diff: %d\n",
 						__func__, info->battery_vcell,
 							new_vcell, vcell_diff);
 				if (vcell_diff > RESET_SOC_DIFF_TH) {
-					pr_info("%s: reset soc\n", __func__);
+					pr_debug("%s: reset soc\n", __func__);
 					battery_control_info(info,
 						POWER_SUPPLY_PROP_CAPACITY, 1);
 				} else
-					pr_info("%s: keep soc\n", __func__);
+					pr_debug("%s: keep soc\n", __func__);
 				break;
 			}
 
 			if (err_cnt == VF_CHECK_COUNT) {
-				pr_info("%s: battery error, power off\n",
+				pr_debug("%s: battery error, power off\n",
 								__func__);
 				battery_charge_control(info, OFF_CURR,
 								OFF_CURR);
 			}
 		}
 	} else
-		pr_info("%s: unexpected error\n", __func__);
+		pr_debug("%s: unexpected error\n", __func__);
 
 	mutex_unlock(&info->err_lock);
 	return;
@@ -1827,17 +1827,17 @@ static void battery_error_work(struct work_struct *work)
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
 static void battery_error_control(struct battery_info *info)
 {
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	if (info->vf_state == true) {
-		pr_info("%s: battery vf error state\n", __func__);
+		pr_debug("%s: battery vf error state\n", __func__);
 
 		/* check again */
 		info->battery_present =	battery_get_info(info,
 					POWER_SUPPLY_PROP_PRESENT);
 
 		if (info->battery_present == 0) {
-			pr_info("%s: battery vf error, "
+			pr_debug("%s: battery vf error, "
 				"disable charging and off the system path!\n",
 				__func__);
 			battery_charge_control(info, OFF_CURR, OFF_CURR);
@@ -1847,10 +1847,10 @@ static void battery_error_control(struct battery_info *info)
 	} else if (info->health_state == true) {
 		if (info->battery_health ==
 				POWER_SUPPLY_HEALTH_OVERVOLTAGE)
-			pr_info("%s: vbus ovp state!", __func__);
+			pr_debug("%s: vbus ovp state!", __func__);
 		else if (info->battery_health ==
 				POWER_SUPPLY_HEALTH_UNSPEC_FAILURE)
-			pr_info("%s: uspec state from charger", __func__);
+			pr_debug("%s: uspec state from charger", __func__);
 	}
 
 	return;
@@ -1972,12 +1972,12 @@ static int samsung_battery_set_property(struct power_supply *ps,
 						 psy_bat);
 
 	if (info->is_suspended) {
-		pr_info("%s: now in suspend\n", __func__);
+		pr_debug("%s: now in suspend\n", __func__);
 		return 0;
 	}
 
 	if (info->battery_test_mode) {
-		pr_info("%s: set test value: psp(%d), val(%d)\n",
+		pr_debug("%s: set test value: psp(%d), val(%d)\n",
 					__func__, psp, val->intval);
 		switch (psp) {
 		case POWER_SUPPLY_PROP_STATUS:
@@ -2100,10 +2100,10 @@ static irqreturn_t battery_isr(int irq, void *data)
 {
 	struct battery_info *info = data;
 	int bat_gpio;
-	pr_info("%s: irq(%d)\n", __func__, irq);
+	pr_debug("%s: irq(%d)\n", __func__, irq);
 
 	bat_gpio = gpio_get_value(info->batdet_gpio);
-	pr_info("%s: battery present gpio(%d)\n", __func__, bat_gpio);
+	pr_debug("%s: battery present gpio(%d)\n", __func__, bat_gpio);
 
 	cancel_work_sync(&info->monitor_work);
 	wake_lock(&info->monitor_wake_lock);
@@ -2122,7 +2122,7 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 	};
 	char *vf_src_name[] = { "adc", "charger irq", "gpio", "unknown"
 	};
-	pr_info("%s: battery init\n", __func__);
+	pr_debug("%s: battery init\n", __func__);
 
 	if (!pdata) {
 		pr_err("%s: no platform data\n", __func__);
@@ -2149,11 +2149,11 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 	if (system_rev >= 2)
 		info->sub_charger_name = info->pdata->sub_charger_name;
 #endif
-	pr_info("%s: Charger name: %s\n", __func__, info->charger_name);
-	pr_info("%s: Fuelgauge name: %s\n", __func__, info->fuelgauge_name);
+	pr_debug("%s: Charger name: %s\n", __func__, info->charger_name);
+	pr_debug("%s: Fuelgauge name: %s\n", __func__, info->fuelgauge_name);
 #if defined(CONFIG_CHARGER_MAX8922_U1)
 	if (system_rev >= 2)
-		pr_info("%s: SubCharger name: %s\n", __func__,
+		pr_debug("%s: SubCharger name: %s\n", __func__,
 			info->sub_charger_name);
 #endif
 
@@ -2176,7 +2176,7 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 		info->pdata->temper_ch = 7;
 	}
 #endif
-	pr_info("%s: Temperature source: %s\n", __func__,
+	pr_debug("%s: Temperature source: %s\n", __func__,
 		temper_src_name[info->pdata->temper_src]);
 
 
@@ -2185,7 +2185,7 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 	if (system_rev < 7)
 		info->pdata->vf_det_src = VF_DET_CHARGER;
 #endif
-	pr_info("%s: VF detect source: %s\n", __func__,
+	pr_debug("%s: VF detect source: %s\n", __func__,
 		vf_src_name[info->pdata->vf_det_src]);
 
 #if !defined(CONFIG_MACH_KONA)
@@ -2193,14 +2193,14 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 	info->pdata->recharge_voltage = info->pdata->voltage_max -
 							RECHG_DROP_VALUE;
 #endif
-	pr_info("%s: Recharge voltage: %d\n", __func__,
+	pr_debug("%s: Recharge voltage: %d\n", __func__,
 				info->pdata->recharge_voltage);
 
 	if (info->pdata->ctia_spec == true) {
-		pr_info("%s: applied CTIA spec, event time(%ds)\n",
+		pr_debug("%s: applied CTIA spec, event time(%ds)\n",
 				__func__, info->pdata->event_time);
 	} else
-		pr_info("%s: not applied CTIA spec\n", __func__);
+		pr_debug("%s: not applied CTIA spec\n", __func__);
 
 #if defined(CONFIG_S3C_ADC)
 	/* adc register */
@@ -2217,12 +2217,12 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 				POWER_SUPPLY_PROP_STATUS);
 	if ((info->charge_real_state == POWER_SUPPLY_STATUS_CHARGING) ||
 		(info->charge_real_state == POWER_SUPPLY_STATUS_FULL)) {
-		pr_info("%s: boot with charging, s(%d)\n", __func__,
+		pr_debug("%s: boot with charging, s(%d)\n", __func__,
 						info->charge_real_state);
 		info->charge_start_time = 1;
 		battery_set_adc_power(info, 1);
 	} else {
-		pr_info("%s: boot without charging, s(%d)\n", __func__,
+		pr_debug("%s: boot without charging, s(%d)\n", __func__,
 						info->charge_real_state);
 		info->charge_start_time = 0;
 	}
@@ -2303,10 +2303,10 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 
 	/* battery present irq */
 	if (!info->pdata->batt_present_gpio) {
-		pr_info("%s: do not support battery gpio detect\n", __func__);
+		pr_debug("%s: do not support battery gpio detect\n", __func__);
 		goto gpio_bat_det_finish;
 	} else
-		pr_info("%s: support battery gpio detection\n", __func__);
+		pr_debug("%s: support battery gpio detection\n", __func__);
 
 	info->batdet_gpio = info->pdata->batt_present_gpio;
 	info->batdet_irq = gpio_to_irq(info->batdet_gpio);
@@ -2366,7 +2366,7 @@ gpio_bat_det_finish:
 	}
 #endif
 
-	pr_info("%s: probe complete\n", __func__);
+	pr_debug("%s: probe complete\n", __func__);
 
 	return 0;
 
@@ -2436,7 +2436,7 @@ static int __devexit samsung_battery_remove(struct platform_device *pdev)
 static int samsung_battery_prepare(struct device *dev)
 {
 	struct battery_info *info = dev_get_drvdata(dev);
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	if ((info->monitor_mode != MONITOR_EMER_LV1) &&
 		(info->monitor_mode != MONITOR_EMER_LV2)) {
@@ -2457,7 +2457,7 @@ static int samsung_battery_prepare(struct device *dev)
 static void samsung_battery_complete(struct device *dev)
 {
 	struct battery_info *info = dev_get_drvdata(dev);
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	info->monitor_mode = MONITOR_NORM;
 
@@ -2467,7 +2467,7 @@ static void samsung_battery_complete(struct device *dev)
 static int samsung_battery_suspend(struct device *dev)
 {
 	struct battery_info *info = dev_get_drvdata(dev);
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	info->is_suspended = true;
 
@@ -2479,7 +2479,7 @@ static int samsung_battery_suspend(struct device *dev)
 static int samsung_battery_resume(struct device *dev)
 {
 	struct battery_info *info = dev_get_drvdata(dev);
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	schedule_work(&info->monitor_work);
 
