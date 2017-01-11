@@ -1986,9 +1986,6 @@ static struct platform_device *midas_devices[] __initdata = {
 	&SYSMMU_PLATDEV(is_cpu),
 #endif
 #endif
-#ifdef CONFIG_ION_EXYNOS
-	&exynos_device_ion,
-#endif
 #ifdef CONFIG_VIDEO_EXYNOS_FIMC_LITE
 	&exynos_device_flite0,
 	&exynos_device_flite1,

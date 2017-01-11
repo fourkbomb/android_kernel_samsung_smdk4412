@@ -6832,9 +6832,6 @@ static struct platform_device *smdkc210_devices[] __initdata = {
 	&SYSMMU_PLATDEV(mfc_l),
 	&SYSMMU_PLATDEV(mfc_r),
 #endif
-#ifdef CONFIG_ION_EXYNOS
-	&exynos_device_ion,
-#endif
 
 	&samsung_asoc_dma,
 #ifndef CONFIG_SND_SOC_SAMSUNG_USE_DMA_WRAPPER

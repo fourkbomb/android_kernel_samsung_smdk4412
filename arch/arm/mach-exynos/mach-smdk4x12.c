@@ -3128,9 +3128,6 @@ static struct platform_device *smdk4x12_devices[] __initdata = {
 	&SYSMMU_PLATDEV(is_cpu),
 #endif
 #endif /* CONFIG_S5P_SYSTEM_MMU */
-#ifdef CONFIG_ION_EXYNOS
-	&exynos_device_ion,
-#endif
 #ifdef CONFIG_VIDEO_EXYNOS_FIMC_LITE
 	&exynos_device_flite0,
 	&exynos_device_flite1,
