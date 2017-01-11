@@ -485,8 +485,8 @@ static int ion_exynos_contig_heap_allocate(struct ion_heap *heap,
         id = ION_EXYNOS_ID_WFD_MFC;
 #endif
 
-	/* Redirect MFC input region to video for Exynos3470 */
-	if (soc_is_exynos3470() && (id == ION_EXYNOS_ID_MFC_INPUT))
+	/* Redirect MFC input region to video for Exynos4 */
+	if ((soc_is_exynos4412() || soc_is_exynos4210()) && (id == ION_EXYNOS_ID_MFC_INPUT))
 		id = ION_EXYNOS_ID_VIDEO;
 
 	if (!contig_region_is_available(contig_heap, id)) {
@@ -618,8 +618,8 @@ static void ion_exynos_contig_heap_showmem(struct ion_heap *heap)
 		if ((i == 4) || (i == 6))
 			continue;
 
-		/* skip MFC input region that is not available on Exynos3470 */
-		if (soc_is_exynos3470() && (i == ION_EXYNOS_ID_MFC_INPUT))
+		/* skip MFC input region that is not available on Exynos4 */
+		if ((soc_is_exynos4412() || soc_is_exynos4210()) && (i == ION_EXYNOS_ID_MFC_INPUT))
 			continue;
 
 		if (!contig_region_is_available(contig_heap, i))
@@ -656,8 +656,8 @@ static int ion_exynos_contig_heap_debug_show(struct ion_heap *heap,
 		if ((i == 4) || (i == 6))
 			continue;
 
-		/* skip MFC input region that is not available on Exynos3470 */
-		if (soc_is_exynos3470() && (i == ION_EXYNOS_ID_MFC_INPUT))
+		/* skip MFC input region that is not available on Exynos4 */
+		if ((soc_is_exynos4412() || soc_is_exynos4210()) && (i == ION_EXYNOS_ID_MFC_INPUT))
 			continue;
 
 		if (!contig_region_is_available(contig_heap, i))
@@ -709,8 +709,8 @@ static struct ion_heap *ion_exynos_contig_heap_create(struct device *dev)
 	}
 
 	for (i = 1; i < ION_EXYNOS_MAX_CONTIG_ID; i++) {
-		/* skip MFC input region that is not available on Exynos3470 */
-		if (soc_is_exynos3470() && (i == ION_EXYNOS_ID_MFC_INPUT))
+		/* skip MFC input region that is not available on Exynos4 */
+		if ((soc_is_exynos4412() || soc_is_exynos4210()) && (i == ION_EXYNOS_ID_MFC_INPUT))
 			continue;
 
 		if (cma_info(&info, dev,
