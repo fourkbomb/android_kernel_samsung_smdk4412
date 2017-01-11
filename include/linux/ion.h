@@ -20,8 +20,6 @@
 #include <linux/types.h>
 
 struct ion_handle;
-typedef struct ion_handle *ion_user_handle_t;
-
 /**
  * enum ion_heap_types - list of all possible types of heaps
  * @ION_HEAP_TYPE_SYSTEM:	 memory allocated via vmalloc
@@ -29,7 +27,6 @@ typedef struct ion_handle *ion_user_handle_t;
  * @ION_HEAP_TYPE_CARVEOUT:	 memory allocated from a prereserved
  * 				 carveout heap, allocations are physically
  * 				 contiguous
- * @ION_HEAP_TYPE_DMA:		 memory allocated via DMA API
  * @ION_NUM_HEAPS:		 helper for iterating over heaps, a bit mask
  * 				 is used to identify the heaps, so only 32
  * 				 total heap types are supported
@@ -39,7 +36,6 @@ enum ion_heap_type {
 	ION_HEAP_TYPE_SYSTEM_CONTIG,
 	ION_HEAP_TYPE_CARVEOUT,
 	ION_HEAP_TYPE_CHUNK,
-	ION_HEAP_TYPE_DMA,
 	ION_HEAP_TYPE_CUSTOM, /* must be last so device specific heaps always
 				 are at the end of this enum */
 	ION_NUM_HEAPS = 16,
@@ -48,7 +44,6 @@ enum ion_heap_type {
 #define ION_HEAP_SYSTEM_MASK		(1 << ION_HEAP_TYPE_SYSTEM)
 #define ION_HEAP_SYSTEM_CONTIG_MASK	(1 << ION_HEAP_TYPE_SYSTEM_CONTIG)
 #define ION_HEAP_CARVEOUT_MASK		(1 << ION_HEAP_TYPE_CARVEOUT)
-#define ION_HEAP_TYPE_DMA_MASK		(1 << ION_HEAP_TYPE_DMA)
 
 #define ION_NUM_HEAP_IDS		sizeof(unsigned int) * 8
 
@@ -63,7 +58,7 @@ enum ion_heap_type {
 #define ION_FLAG_CACHED_NEEDS_SYNC 2	/* mappings of this buffer will created
 					   at mmap time, if this is set
 					   caches must be managed manually */
-#define ION_FLAG_PRESERVE_KMAP 4 	/* deprecated. ignored. */
+#define ION_FLAG_PRESERVE_KMAP 4	/* deprecated. ignored. */
 #define ION_FLAG_NOZEROED 8		/* Allocated buffer is not initialized
 					   with zero value and userspace is not
 					   able to access the buffer
@@ -115,7 +110,7 @@ struct ion_platform_heap {
  */
 struct ion_platform_data {
 	int nr;
-	struct ion_platform_heap *heaps;
+	struct ion_platform_heap heaps[];
 };
 
 /**
@@ -275,7 +270,7 @@ struct ion_allocation_data {
 	size_t align;
 	unsigned int heap_id_mask;
 	unsigned int flags;
-	ion_user_handle_t handle;
+	struct ion_handle *handle;
 };
 
 /**
@@ -289,7 +284,7 @@ struct ion_allocation_data {
  * provides the file descriptor and the kernel returns the handle.
  */
 struct ion_fd_data {
-	ion_user_handle_t handle;
+	struct ion_handle *handle;
 	int fd;
 };
 
@@ -298,7 +293,7 @@ struct ion_fd_data {
  * @handle:	a handle
  */
 struct ion_handle_data {
-	ion_user_handle_t handle;
+	struct ion_handle *handle;
 };
 
 /**
@@ -312,27 +307,6 @@ struct ion_handle_data {
 struct ion_custom_data {
 	unsigned int cmd;
 	unsigned long arg;
-};
-
-/**
- * struct ion_preload_data - metadata for preload buffers
- * @heap_id_mask:	mask of heap ids to allocate from
- * @len:		size of the allocation
- * @flags:		flags passed to heap
- * @count:		number of buffers of the allocation
- *
- * Provided by userspace as an argument to the ioctl
- */
-struct ion_preload_object {
-	size_t len;
-	unsigned int count;
-};
-
-struct ion_preload_data {
-	unsigned int heap_id_mask;
-	unsigned int flags;
-	unsigned int count;
-	struct ion_preload_object *obj;
 };
 
 #define ION_IOC_MAGIC		'I'
@@ -392,11 +366,6 @@ struct ion_preload_data {
  * this will make the buffer in memory coherent.
  */
 #define ION_IOC_SYNC		_IOWR(ION_IOC_MAGIC, 7, struct ion_fd_data)
-
-/**
- * DOC: ION_IOC_PRELOAD_ALLOC - prefetches pages to page pool
- */
-#define ION_IOC_PRELOAD_ALLOC	_IOW(ION_IOC_MAGIC, 8, struct ion_preload_data)
 
 /**
  * DOC: ION_IOC_CUSTOM - call architecture specific ion ioctl
