@@ -364,6 +364,30 @@ struct s5p_hdmi_v_format {
 	u8			mhl_vsync;
 };
 
+#ifdef CONFIG_HDMI_TX_STRENGTH
+#define HDMI_PHY_I2C_REG10	0x10
+#define HDMI_PHY_I2C_REG0F	0x0F
+#define HDMI_PHY_I2C_REG04	0x04
+#define HDMI_PHY_I2C_REG13	0x13
+#define HDMI_PHY_I2C_REG17	0x17
+
+#define TX_EMP_LVL	0x10
+#define TX_AMP_LVL	0x08
+#define TX_LVL_CH0	0x04
+#define TX_LVL_CH1	0x02
+#define TX_LVL_CH2	0x01
+
+#define TX_EMP_LVL_VAL	0
+#define TX_AMP_LVL_VAL	1
+#define TX_LVL_CH0_VAL	2
+#define TX_LVL_CH1_VAL	3
+#define TX_LVL_CH2_VAL	4
+
+extern int s5p_hdmi_phy_set_tx_strength(u8 ch, u8 *value);
+#endif
+extern int s5p_hdmi_phy_disable_mode_set_done(void);
+extern int s5p_hdmi_phy_pad_disable(void);
+extern int s5p_hdmi_phy_enable_control(bool enable);
 extern int s5p_hdmi_phy_power(bool on);
 extern s32 s5p_hdmi_phy_config(
 		enum phy_freq freq, enum s5p_hdmi_color_depth cd);
@@ -400,6 +424,7 @@ extern void s5p_hdmi_reg_sw_hpd_enable(bool enable);
 extern void s5p_hdmi_reg_set_hpd_onoff(bool on_off);
 extern u8 s5p_hdmi_reg_get_hpd_status(void);
 extern void s5p_hdmi_reg_hpd_gen(void);
+extern void s5p_hdmi_reg_hpd_deglitch(bool on, u32 threshold);
 extern int s5p_hdmi_reg_intc_set_isr(irqreturn_t (*isr)(int, void *), u8 num);
 extern void s5p_hdmi_reg_intc_enable(enum s5p_hdmi_interrrupt intr, u8 en);
 #ifdef CONFIG_HDMI_EARJACK_MUTE
@@ -750,6 +775,7 @@ extern int s5p_hdcp_encrypt_stop(bool on);
 extern int __init s5p_hdcp_init(void);
 extern int s5p_hdcp_start(void);
 extern int s5p_hdcp_stop(void);
+extern void s5p_hdcp_flush_work(void);
 
 /****************************************
  * Definitions for sdo ctrl class
@@ -882,8 +908,12 @@ enum s5p_hdmi_v_mode {
 	v1920x1080i_59Hz,
 	v1920x1080p_59Hz,
 #ifdef CONFIG_HDMI_14A_3D
+	v1920x1080p_60Hz_SBS_HALF,
 	v1280x720p_60Hz_SBS_HALF,
 	v1280x720p_59Hz_SBS_HALF,
+	v1920x1080p_24Hz_SBS_HALF,
+	v1920x1080p_60Hz_TB,
+	v1280x720p_60Hz_TB,
 	v1280x720p_50Hz_TB,
 	v1920x1080p_24Hz_TB,
 	v1920x1080p_23Hz_TB,
@@ -1000,6 +1030,10 @@ struct s5p_tvif_ctrl_private_data {
 	struct device *bus_dev; /* for BusFreq with Opp */
 #endif
 	struct device *dev; /* hpd device pointer */
+#ifdef CONFIG_HDMI_TX_STRENGTH
+	u8 tx_ch;
+	u8 *tx_val;
+#endif
 };
 
 #endif /* _SAMSUNG_TVOUT_HW_IF_H_ */

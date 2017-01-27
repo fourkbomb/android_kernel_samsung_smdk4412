@@ -49,6 +49,12 @@
 #if defined(CONFIG_BUSFREQ_OPP) || defined(CONFIG_BUSFREQ_LOCK_WRAPPER)
 #include <mach/dev.h>
 #endif
+#include <mach/regs-hdmi.h>
+
+#ifdef CONFIG_HDMI_TX_STRENGTH
+#include <plat/tvout.h>
+#endif
+
 
 #include "s5p_tvout_common_lib.h"
 #include "hw_if/hw_if.h"
@@ -667,6 +673,53 @@ static struct s5p_hdmi_v_format s5p_hdmi_v_fmt[] = {
 		.mhl_vsync = 0x1,
 	},
 
+	[v1920x1080p_60Hz_SBS_HALF] = {
+		.frame = {
+			.vH_Line = 0x0898,
+			.vV_Line = 0x0465,
+			.vH_SYNC_START = 0x0056,
+			.vH_SYNC_END = 0x0082,
+			.vV1_Blank = 0x002d,
+			.vV2_Blank = 0x0465,
+			.vHBlank = 0x0118,
+			.VBLANK_F0 = 0xffff,
+			.VBLANK_F1 = 0xffff,
+			.vVSYNC_LINE_BEF_1 = 0x4,
+			.vVSYNC_LINE_BEF_2 = 0x0009,
+			.vVSYNC_LINE_AFT_1 = 0xffff,
+			.vVSYNC_LINE_AFT_2 = 0xffff,
+			.vVSYNC_LINE_AFT_PXL_1 = 0xffff,
+			.vVSYNC_LINE_AFT_PXL_2 = 0xffff,
+			.vVACT_SPACE_1 = 0xffff,
+			.vVACT_SPACE_2 = 0xffff,
+			.Hsync_polarity = 0,
+			.Vsync_polarity = 0,
+			.interlaced = 0,
+			.vAVI_VIC = 16,
+			.vAVI_VIC_16_9 = 16,
+			.repetition = 0,
+			.pixel_clock = ePHY_FREQ_148_500,
+		},
+		.tg_H_FSZ = 0x898,
+		.tg_HACT_ST = 0x118,
+		.tg_HACT_SZ = 0x780,
+		.tg_V_FSZ = 0x465,
+		.tg_VSYNC = 0x1,
+		.tg_VSYNC2 = 0x233,
+		.tg_VACT_ST = 0x2d,
+		.tg_VACT_SZ = 0x438,
+		.tg_FIELD_CHG = 0x233,
+		.tg_VACT_ST2 = 0x248,
+		.tg_VACT_ST3 = 0x0,
+		.tg_VACT_ST4 = 0x0,
+		.tg_VSYNC_TOP_HDMI = 0x1,
+		.tg_VSYNC_BOT_HDMI = 0x1,
+		.tg_FIELD_TOP_HDMI = 0x1,
+		.tg_FIELD_BOT_HDMI = 0x233,
+		.mhl_hsync = 0xf,
+		.mhl_vsync = 0x1,
+	},
+
 	[v1280x720p_60Hz_SBS_HALF] = {
 		.frame = {
 			.vH_Line = 0x0672,
@@ -750,6 +803,147 @@ static struct s5p_hdmi_v_format s5p_hdmi_v_fmt[] = {
 		.tg_VACT_ST = 0x1e,
 		.tg_VACT_SZ = 0x2d0,
 		.tg_FIELD_CHG = 0x0,
+		.tg_VACT_ST2 = 0x30c,
+		.tg_VACT_ST3 = 0x0,
+		.tg_VACT_ST4 = 0x0,
+		.tg_VSYNC_TOP_HDMI = 0x1,
+		.tg_VSYNC_BOT_HDMI = 0x1,
+		.tg_FIELD_TOP_HDMI = 0x1,
+		.tg_FIELD_BOT_HDMI = 0x233,
+		.mhl_hsync = 0xf,
+		.mhl_vsync = 0x1,
+	},
+
+	[v1920x1080p_24Hz_SBS_HALF] = {
+		.frame = {
+			.vH_Line = 0x0abe,
+			.vV_Line = 0x0465,
+			.vH_SYNC_START = 0x027c,
+			.vH_SYNC_END = 0x02a8,
+			.vV1_Blank = 0x002d,
+			.vV2_Blank = 0x0465,
+			.vHBlank = 0x033e,
+			.VBLANK_F0 = 0xffff,
+			.VBLANK_F1 = 0xffff,
+			.vVSYNC_LINE_BEF_1 = 0x4,
+			.vVSYNC_LINE_BEF_2 = 0x0009,
+			.vVSYNC_LINE_AFT_1 = 0xffff,
+			.vVSYNC_LINE_AFT_2 = 0xffff,
+			.vVSYNC_LINE_AFT_PXL_1 = 0xffff,
+			.vVSYNC_LINE_AFT_PXL_2 = 0xffff,
+			.vVACT_SPACE_1 = 0xffff,
+			.vVACT_SPACE_2 = 0xffff,
+			.Hsync_polarity = 0,
+			.Vsync_polarity = 0,
+			.interlaced = 0,
+			.vAVI_VIC = 32,
+			.vAVI_VIC_16_9 = 32,
+			.repetition = 0,
+			.pixel_clock = ePHY_FREQ_74_250,
+		},
+		.tg_H_FSZ = 0xabe,
+		.tg_HACT_ST = 0x33e,
+		.tg_HACT_SZ = 0x780,
+		.tg_V_FSZ = 0x465,
+		.tg_VSYNC = 0x1,
+		.tg_VSYNC2 = 0x233,
+		.tg_VACT_ST = 0x2d,
+		.tg_VACT_SZ = 0x438,
+		.tg_FIELD_CHG = 0x233,
+		.tg_VACT_ST2 = 0x248,
+		.tg_VACT_ST3 = 0x0,
+		.tg_VACT_ST4 = 0x0,
+		.tg_VSYNC_TOP_HDMI = 0x1,
+		.tg_VSYNC_BOT_HDMI = 0x1,
+		.tg_FIELD_TOP_HDMI = 0x1,
+		.tg_FIELD_BOT_HDMI = 0x233,
+		.mhl_hsync = 0xf,
+		.mhl_vsync = 0x1,
+	},
+
+	[v1920x1080p_60Hz_TB] = {
+		.frame = {
+			.vH_Line = 0x0898,
+			.vV_Line = 0x0465,
+			.vH_SYNC_START = 0x0056,
+			.vH_SYNC_END = 0x0082,
+			.vV1_Blank = 0x002d,
+			.vV2_Blank = 0x0465,
+			.vHBlank = 0x0118,
+			.VBLANK_F0 = 0xffff,
+			.VBLANK_F1 = 0xffff,
+			.vVSYNC_LINE_BEF_1 = 0x4,
+			.vVSYNC_LINE_BEF_2 = 0x0009,
+			.vVSYNC_LINE_AFT_1 = 0xffff,
+			.vVSYNC_LINE_AFT_2 = 0xffff,
+			.vVSYNC_LINE_AFT_PXL_1 = 0xffff,
+			.vVSYNC_LINE_AFT_PXL_2 = 0xffff,
+			.vVACT_SPACE_1 = 0xffff,
+			.vVACT_SPACE_2 = 0xffff,
+			.Hsync_polarity = 0,
+			.Vsync_polarity = 0,
+			.interlaced = 0,
+			.vAVI_VIC = 16,
+			.vAVI_VIC_16_9 = 16,
+			.repetition = 0,
+			.pixel_clock = ePHY_FREQ_148_500,
+		},
+		.tg_H_FSZ = 0x898,
+		.tg_HACT_ST = 0x118,
+		.tg_HACT_SZ = 0x780,
+		.tg_V_FSZ = 0x465,
+		.tg_VSYNC = 0x1,
+		.tg_VSYNC2 = 0x233,
+		.tg_VACT_ST = 0x2d,
+		.tg_VACT_SZ = 0x438,
+		.tg_FIELD_CHG = 0x233,
+		.tg_VACT_ST2 = 0x248,
+		.tg_VACT_ST3 = 0x0,
+		.tg_VACT_ST4 = 0x0,
+		.tg_VSYNC_TOP_HDMI = 0x1,
+		.tg_VSYNC_BOT_HDMI = 0x1,
+		.tg_FIELD_TOP_HDMI = 0x1,
+		.tg_FIELD_BOT_HDMI = 0x233,
+		.mhl_hsync = 0xf,
+		.mhl_vsync = 0x1,
+	},
+
+	[v1280x720p_60Hz_TB] = {
+		.frame = {
+			.vH_Line = 0x0672,
+			.vV_Line = 0x02ee,
+			.vH_SYNC_START = 0x006c,
+			.vH_SYNC_END = 0x0094,
+			.vV1_Blank = 0x001e,
+			.vV2_Blank = 0x02ee,
+			.vHBlank = 0x0172,
+			.VBLANK_F0 = 0xffff,
+			.VBLANK_F1 = 0xffff,
+			.vVSYNC_LINE_BEF_1 = 0x5,
+			.vVSYNC_LINE_BEF_2 = 0x000a,
+			.vVSYNC_LINE_AFT_1 = 0xffff,
+			.vVSYNC_LINE_AFT_2 = 0xffff,
+			.vVSYNC_LINE_AFT_PXL_1 = 0xffff,
+			.vVSYNC_LINE_AFT_PXL_2 = 0xffff,
+			.vVACT_SPACE_1 = 0xffff,
+			.vVACT_SPACE_2 = 0xffff,
+			.Hsync_polarity = 0,
+			.Vsync_polarity = 0,
+			.interlaced = 0,
+			.vAVI_VIC = 4,
+			.vAVI_VIC_16_9 = 4,
+			.repetition = 0,
+			.pixel_clock = ePHY_FREQ_74_250,
+		},
+		.tg_H_FSZ = 0x672,
+		.tg_HACT_ST = 0x172,
+		.tg_HACT_SZ = 0x500,
+		.tg_V_FSZ = 0x2ee,
+		.tg_VSYNC = 0x1,
+		.tg_VSYNC2 = 0x233,
+		.tg_VACT_ST = 0x1e,
+		.tg_VACT_SZ = 0x2d0,
+		.tg_FIELD_CHG = 0x233,
 		.tg_VACT_ST2 = 0x30c,
 		.tg_VACT_ST3 = 0x0,
 		.tg_VACT_ST4 = 0x0,
@@ -1758,7 +1952,7 @@ static void s5p_sdo_ctrl_clock(bool on)
 #ifdef CONFIG_ARCH_EXYNOS4
 		s5p_tvout_pm_runtime_get();
 #endif
-		// Restore sdo_base address
+		/* Restore sdo_base address */
 		s5p_sdo_init(s5p_sdo_ctrl_private.reg_mem.base);
 
 		clk_enable(s5p_sdo_ctrl_private.clk[SDO_PCLK].ptr);
@@ -1771,7 +1965,7 @@ static void s5p_sdo_ctrl_clock(bool on)
 
 		clk_disable(s5p_sdo_ctrl_private.clk[SDO_MUX].ptr);
 
-		// Set sdo_base address to NULL
+		/* Set sdo_base address to NULL */
 		s5p_sdo_init(NULL);
 	}
 
@@ -2004,12 +2198,28 @@ static enum s5p_hdmi_v_mode s5p_hdmi_check_v_fmt(enum s5p_tvout_disp_mode disp)
 		video->colorimetry = HDMI_CLRIMETRY_709;
 		break;
 #ifdef CONFIG_HDMI_14A_3D
+	case TVOUT_1080P_60_SBS_HALF:
+		mode = v1920x1080p_60Hz_SBS_HALF;
+		video->colorimetry = HDMI_CLRIMETRY_709;
+		break;
 	case TVOUT_720P_60_SBS_HALF:
 		mode = v1280x720p_60Hz_SBS_HALF;
 		video->colorimetry = HDMI_CLRIMETRY_709;
 		break;
 	case TVOUT_720P_59_SBS_HALF:
 		mode = v1280x720p_59Hz_SBS_HALF;
+		video->colorimetry = HDMI_CLRIMETRY_709;
+		break;
+	case TVOUT_1080P_24_SBS_HALF:
+		mode = v1920x1080p_24Hz_SBS_HALF;
+		video->colorimetry = HDMI_CLRIMETRY_709;
+		break;
+	case TVOUT_1080P_60_TB:
+		mode = v1920x1080p_60Hz_TB;
+		video->colorimetry = HDMI_CLRIMETRY_709;
+		break;
+	case TVOUT_720P_60_TB:
+		mode = v1280x720p_60Hz_TB;
 		video->colorimetry = HDMI_CLRIMETRY_709;
 		break;
 	case TVOUT_720P_50_TB:
@@ -2298,11 +2508,16 @@ static bool s5p_hdmi_ctrl_set_reg(
 
 
 #ifdef CONFIG_HDMI_14A_3D
-	if ((mode == v1280x720p_60Hz_SBS_HALF) ||
-		(mode == v1280x720p_59Hz_SBS_HALF))
+	if ((mode == v1920x1080p_60Hz_SBS_HALF) ||
+	    (mode == v1920x1080p_24Hz_SBS_HALF) ||
+	    (mode == v1280x720p_60Hz_SBS_HALF) ||
+	    (mode == v1280x720p_59Hz_SBS_HALF))
 		type3D = HDMI_3D_SSH_FORMAT;
-	else if ((mode == v1280x720p_50Hz_TB) ||
-		(mode == v1920x1080p_24Hz_TB) || (mode == v1920x1080p_23Hz_TB))
+	else if ((mode == v1920x1080p_60Hz_TB) ||
+		 (mode == v1280x720p_60Hz_TB) ||
+		 (mode == v1280x720p_50Hz_TB) ||
+		 (mode == v1920x1080p_24Hz_TB) ||
+		 (mode == v1920x1080p_23Hz_TB))
 		type3D = HDMI_3D_TB_FORMAT;
 	else
 		type3D = HDMI_2D_FORMAT;
@@ -2359,11 +2574,14 @@ static void s5p_hdmi_ctrl_internal_stop(void)
 	struct s5p_hdmi_tg			*tg = &ctrl->tg;
 
 	tvout_dbg("\n");
+	s5p_hdmi_reg_hpd_deglitch(false, 0);
 #ifdef CONFIG_HDMI_HPD
 	s5p_hpd_set_eint();
 #endif
-	if (ctrl->hdcp_en)
+	if (ctrl->hdcp_en) {
 		s5p_hdcp_stop();
+		s5p_hdcp_flush_work();
+	}
 
 	s5p_hdmi_reg_enable(false);
 
@@ -2376,10 +2594,10 @@ int s5p_hdmi_ctrl_phy_power(bool on)
 	if (on) {
 		/* on */
 		clk_enable(s5ptv_status.i2c_phy_clk);
-		// Restore i2c_hdmi_phy_base address
+		/* Restore i2c_hdmi_phy_base address */
 		s5p_hdmi_phy_init(s5p_hdmi_ctrl_private.reg_mem[HDMI_PHY].base);
 
-		s5p_hdmi_phy_power(true);
+		s5p_hdmi_phy_enable_control(true);
 
 	} else {
 		/*
@@ -2395,10 +2613,10 @@ int s5p_hdmi_ctrl_phy_power(bool on)
 			return -1;
 		}
 
-		s5p_hdmi_phy_power(false);
+		s5p_hdmi_phy_enable_control(false);
 
 		clk_disable(s5ptv_status.i2c_phy_clk);
-		// Set i2c_hdmi_phy_base to NULL
+		/* Set i2c_hdmi_phy_base to NULL */
 		s5p_hdmi_phy_init(NULL);
 	}
 
@@ -2419,7 +2637,7 @@ void s5p_hdmi_ctrl_clock(bool on)
 #endif
 		clk_enable(clk[HDMI_PCLK].ptr);
 
-		// Restore hdmi_base address
+		/* Restore hdmi_base address */
 		s5p_hdmi_init(s5p_hdmi_ctrl_private.reg_mem[HDMI].base);
 	} else {
 		clk_disable(clk[HDMI_PCLK].ptr);
@@ -2430,7 +2648,7 @@ void s5p_hdmi_ctrl_clock(bool on)
 
 		clk_disable(clk[HDMI_MUX].ptr);
 
-		// Set hdmi_base to NULL
+		/* Set hdmi_base to NULL */
 		s5p_hdmi_init(NULL);
 	}
 }
@@ -2447,7 +2665,7 @@ void s5p_hdmi_ctrl_stop(void)
 	tvout_dbg("running(%d)\n", ctrl->running);
 	if (ctrl->running) {
 		ctrl->running = false;
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#ifdef CLOCK_GATING_ON_EARLY_SUSPEND
 		if (suspend_status) {
 			tvout_dbg("driver is suspend_status\n");
 		} else
@@ -2467,6 +2685,7 @@ int s5p_hdmi_ctrl_start(
 	struct s5p_hdmi_v_frame			frame;
 
 	enum s5p_hdmi_v_mode			mode;
+	int ret = 0;
 
 	ctrl->out = out;
 	mode = s5p_hdmi_check_v_fmt(disp);
@@ -2484,11 +2703,19 @@ int s5p_hdmi_ctrl_start(
 
 	frame = s5p_hdmi_v_fmt[mode].frame;
 
-	if (s5p_hdmi_phy_config(frame.pixel_clock, ctrl->video.depth) < 0) {
-		tvout_err("hdmi phy configuration failed.\n");
+	ret = s5p_hdmi_phy_config(frame.pixel_clock, ctrl->video.depth);
+	if (ret < 0)
+		tvout_err("hdmi phy configuration failed 0.\n");
+	else
+		ret = s5p_hdmi_phy_power(true);
+
+	if (ret < 0) {
+		tvout_err("hdmi phy configuration failed 1.\n");
+		s5p_hdmi_ctrl_internal_stop();
 		goto err_on_s5p_hdmi_start;
 	}
 
+	s5p_hdmi_phy_power(true);
 
 	s5p_hdmi_set_acr(&ctrl->audio, packet->acr);
 	s5p_hdmi_set_asp(packet->h_asp);
@@ -2509,6 +2736,7 @@ int s5p_hdmi_ctrl_start(
 		s5p_hdcp_start();
 
 	s5p_hdmi_reg_enable(true);
+	s5p_hdmi_reg_hpd_deglitch(true, 0xff);
 
 #ifdef CONFIG_HDMI_HPD
 	s5p_hpd_set_hdmiint();
@@ -2569,7 +2797,15 @@ int s5p_hdmi_ctrl_constructor(struct platform_device *pdev)
 
 	/* set initial state of HDMI PHY power to off */
 	s5p_hdmi_ctrl_phy_power(1);
+	s5p_hdmi_phy_power(true);
+	s5p_hdmi_phy_power(false);
 	s5p_hdmi_ctrl_phy_power(0);
+
+#ifdef CONFIG_ARCH_EXYNOS4
+	/* Power down TV domain */
+	s5p_tvout_pm_runtime_get();
+	s5p_tvout_pm_runtime_put();
+#endif
 
 	ret = s5p_hdcp_init();
 
@@ -2633,6 +2869,7 @@ static void s5p_tvenc_src_to_hdmiphy_on(void)
 {
 	s5p_hdmi_ctrl_clock(1);
 	s5p_hdmi_ctrl_phy_power(1);
+	s5p_hdmi_phy_power(true);
 	if (s5p_hdmi_phy_config(ePHY_FREQ_54, HDMI_CD_24) < 0)
 		tvout_err("hdmi phy configuration failed.\n");
 	if (clk_set_parent(s5ptv_status.sclk_dac, s5ptv_status.sclk_hdmiphy))
@@ -2643,6 +2880,7 @@ static void s5p_tvenc_src_to_hdmiphy_on(void)
 
 static void s5p_tvenc_src_to_hdmiphy_off(void)
 {
+	s5p_hdmi_phy_power(false);
 	s5p_hdmi_ctrl_phy_power(0);
 	s5p_hdmi_ctrl_clock(0);
 }
@@ -2681,12 +2919,13 @@ static int s5p_tvif_ctrl_internal_stop(void)
 	case TVOUT_HDMI:
 	case TVOUT_HDMI_RGB:
 		s5p_hdmi_ctrl_stop();
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#ifdef CLOCK_GATING_ON_EARLY_SUSPEND
 		if (suspend_status) {
 			tvout_dbg("driver is suspend_status\n");
 		} else
 #endif
 		{
+			s5p_hdmi_phy_power(false);
 			s5p_hdmi_ctrl_phy_power(0);
 		}
 		break;
@@ -2704,7 +2943,12 @@ static void s5p_tvif_ctrl_internal_start(
 		enum s5p_tvout_disp_mode std,
 		enum s5p_tvout_o_mode inf)
 {
+	int ret = 0;
 	tvout_dbg("\n");
+#ifdef	__CONFIG_HDMI_SUPPORT_FULL_RANGE__
+	s5p_hdmi_output[inf].reg.pxl_limit =
+		S5P_HDMI_PX_LMT_CTRL_BYPASS;
+#endif
 	s5p_mixer_ctrl_set_int_enable(false);
 
 	/* Clear All Interrupt Pending */
@@ -2724,7 +2968,69 @@ static void s5p_tvif_ctrl_internal_start(
 	case TVOUT_HDMI:
 	case TVOUT_HDMI_RGB:
 	case TVOUT_DVI:
+#ifdef	__CONFIG_HDMI_SUPPORT_FULL_RANGE__
+	switch (std) {
+	case TVOUT_480P_60_4_3:
+		if (inf == TVOUT_HDMI_RGB) /* full range */
+			s5p_hdmi_output[inf].reg.pxl_limit =
+				S5P_HDMI_PX_LMT_CTRL_BYPASS;
+		else if (s5p_tvif_get_q_range()) /* full range */
+			s5p_hdmi_output[inf].reg.pxl_limit =
+				S5P_HDMI_PX_LMT_CTRL_BYPASS;
+		else /* limited range */
+			s5p_hdmi_output[inf].reg.pxl_limit =
+				S5P_HDMI_PX_LMT_CTRL_YPBPR;
+		break;
+	case TVOUT_480P_60_16_9:
+	case TVOUT_480P_59:
+	case TVOUT_576P_50_16_9:
+	case TVOUT_576P_50_4_3:
+	case TVOUT_720P_60:
+	case TVOUT_720P_50:
+	case TVOUT_720P_59:
+	case TVOUT_1080I_60:
+	case TVOUT_1080I_59:
+	case TVOUT_1080I_50:
+	case TVOUT_1080P_60:
+	case TVOUT_1080P_30:
+	case TVOUT_1080P_59:
+	case TVOUT_1080P_50:
+		if (inf == TVOUT_HDMI_RGB) /* limited range */
+			s5p_hdmi_output[inf].reg.pxl_limit =
+				S5P_HDMI_PX_LMT_CTRL_RGB;
+		else if (s5p_tvif_get_q_range()) /* full range */
+			s5p_hdmi_output[inf].reg.pxl_limit =
+				S5P_HDMI_PX_LMT_CTRL_BYPASS;
+		else /* limited range */
+			s5p_hdmi_output[inf].reg.pxl_limit =
+				S5P_HDMI_PX_LMT_CTRL_YPBPR;
+		break;
+	default:
+		break;
+	}
+#endif
 		s5p_hdmi_ctrl_phy_power(1);
+#ifdef CONFIG_HDMI_TX_STRENGTH
+		if (s5p_tvif_ctrl_private.tx_val)
+			s5p_hdmi_phy_set_tx_strength(
+			s5p_tvif_ctrl_private.tx_ch,
+			s5p_tvif_ctrl_private.tx_val);
+#endif
+		if (ret < 0)
+			tvout_err("hdmi phy configuration failed 4\n");
+		else
+			ret = s5p_hdmi_phy_disable_mode_set_done();
+		if (ret < 0)
+			tvout_err("hdmi phy configuration failed 2\n");
+		else
+			ret= s5p_hdmi_phy_pad_disable();
+		if (ret < 0) {
+			tvout_err("hdmi phy configuration failed 3\n");
+			s5p_hdmi_ctrl_phy_power(0);
+			on_start_process = false;
+			tvout_dbg("on_start_process(%d)\n", on_start_process);
+			return;
+		}
 
 		if (s5p_mixer_ctrl_start(std, inf) < 0)
 			goto ret_on_err;
@@ -2854,7 +3160,7 @@ int s5p_tvif_ctrl_start(
 		goto cannot_change;
 	}
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#ifdef CLOCK_GATING_ON_EARLY_SUSPEND
 	if (suspend_status) {
 		tvout_dbg("driver is suspend_status\n");
 	} else
@@ -2889,6 +3195,16 @@ void s5p_tvif_ctrl_stop(void)
 
 int s5p_tvif_ctrl_constructor(struct platform_device *pdev)
 {
+#ifdef CONFIG_HDMI_TX_STRENGTH
+	struct s5p_platform_tvout *pdata = to_tvout_plat(&pdev->dev);
+	s5p_tvif_ctrl_private.tx_ch = 0x00;
+	s5p_tvif_ctrl_private.tx_val = NULL;
+	if ((pdata) && (pdata->tx_tune)) {
+		s5p_tvif_ctrl_private.tx_ch = pdata->tx_tune->tx_ch;
+		s5p_tvif_ctrl_private.tx_val = pdata->tx_tune->tx_val;
+	}
+#endif
+
 #ifdef CONFIG_ANALOG_TVENC
 	if (s5p_sdo_ctrl_constructor(pdev))
 		goto err;
@@ -2945,6 +3261,8 @@ void s5p_hdmi_ctrl_phy_power_resume(void)
 		return;
 
 	s5p_hdmi_ctrl_phy_power(1);
+	s5p_hdmi_phy_power(true);
+	s5p_hdmi_phy_power(false);
 	s5p_hdmi_ctrl_phy_power(0);
 
 	return;

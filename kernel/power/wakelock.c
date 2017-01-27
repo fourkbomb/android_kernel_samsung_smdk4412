@@ -255,6 +255,7 @@ long has_wake_lock(int type)
 {
 	long ret;
 	unsigned long irqflags;
+
 	spin_lock_irqsave(&list_lock, irqflags);
 	ret = has_wake_lock_locked(type);
 	if (ret && (debug_mask & DEBUG_WAKEUP) && type == WAKE_LOCK_SUSPEND)
@@ -323,6 +324,9 @@ static void suspend(struct work_struct *work)
 	if (current_event_num == entry_event_num) {
 		if (debug_mask & DEBUG_SUSPEND)
 			pr_info("suspend: pm_suspend returned with no event\n");
+		wake_lock_timeout(&unknown_wakeup, HZ / 2);
+	} else if (ret) {
+		pr_info("PM: suspend returned(%d)\n", ret);
 		wake_lock_timeout(&unknown_wakeup, HZ / 2);
 	}
 }

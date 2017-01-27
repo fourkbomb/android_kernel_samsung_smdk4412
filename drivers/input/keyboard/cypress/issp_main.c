@@ -389,9 +389,17 @@ unsigned int iChecksumTarget;
 #include "touchkey_fw_NA.h"
 #elif defined(CONFIG_TARGET_LOCALE_NAATT)
 #include "touchkey_fw_NAATT.h"
-#elif defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_C1)\
-|| defined(CONFIG_MACH_C1VZW)
+#elif defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_C1) || \
+	defined(CONFIG_MACH_M3)
 #include "touchkey_fw_M0.h"
+#elif defined(CONFIG_MACH_T0) || defined(CONFIG_MACH_GD2)
+#include "touchkey_fw_T0.h"
+#elif defined(CONFIG_MACH_SUPERIOR_KOR_SKT)
+#include "touchkey_fw_SUPERIOR.h"
+#elif defined(CONFIG_MACH_U1_KOR_LGT)
+#include "touchkey_fw_U1-LGT.h"
+#elif defined(CONFIG_MACH_ZEST)
+#include "touchkey_fw_ZEST.h"
 #else
 #include "touchkey_fw_U1.h"
 #endif
@@ -684,7 +692,7 @@ RAM Load, FLASHBlock Program, and Target Checksum Verification.*/
 	/*INTFREE(); */
 #else
 	/*INTLOCK(); */
-	local_irq_save(flags);
+	/*local_irq_save(flags);*/
 	/* Initialize the Host & Target for ISSP operations */
 	fIsError = fPowerCycleInitializeTargetForISSP();
 	if (fIsError) {
@@ -713,20 +721,20 @@ RAM Load, FLASHBlock Program, and Target Checksum Verification.*/
 #endif
 
 	/*INTFREE(); */
-	local_irq_restore(flags);
+	/*local_irq_restore(flags);*/
 	/*printk(KERN_DEBUG"fVerifySiliconID END\n"); */
 
 	/* Bulk-Erase the Device. */
 	/*printk(KERN_DEBUG"fEraseTarget START\n"); */
 	/*INTLOCK(); */
 	fIsError = fEraseTarget();
-	local_irq_save(flags);
+	/*local_irq_save(flags);*/
 	if (fIsError) {
 		ErrorTrap(fIsError);
 		return fIsError;
 	}
 	/*INTFREE(); */
-	local_irq_restore(flags);
+	/*local_irq_restore(flags);*/
 	/*printk(KERN_DEBUG"fEraseTarget END\n"); */
 
 /*==============================================================
@@ -739,7 +747,7 @@ this data should come from the HEX output of PSoC Designer.*/
 	iChecksumData = 0;
 	/*PTJ: NUM_BANKS should be 1 for Krypton*/
 	for (bBankCounter = 0; bBankCounter < NUM_BANKS; bBankCounter++) {
-		local_irq_save(flags);
+		/*local_irq_save(flags);*/
 		for (iBlockCounter = 0; iBlockCounter < BLOCKS_PER_BANK;
 		     iBlockCounter++) {
 			/*printk(KERN_DEBUG
@@ -789,7 +797,7 @@ this data should come from the HEX output of PSoC Designer.*/
 			/*INTFREE(); */
 			/*local_irq_restore(flags);*/
 		}
-		local_irq_restore(flags);
+		/*local_irq_restore(flags);*/
 	}
 
 	/*printk(KERN_DEBUG"\r\n Program Flash Blocks End\n"); */
@@ -857,7 +865,7 @@ this data should come from the HEX output of PSoC Designer.*/
 	 come from the hex output of psoc designer.
 	printk(KERN_DEBUG"program security data start\n");*/
 	/*INTLOCK(); */
-	local_irq_save(flags);
+	/*local_irq_save(flags);*/
 	for (bBankCounter = 0; bBankCounter < NUM_BANKS; bBankCounter++) {
 		/*PTJ: READ-WRITE-SETUP used here to select SRAM Bank 1 */
 #ifdef CY8C20x66
@@ -887,7 +895,7 @@ this data should come from the HEX output of PSoC Designer.*/
 		}
 	}
 	/*INTFREE(); */
-	local_irq_restore(flags);
+	/*local_irq_restore(flags);*/
 
 	/*printk(KERN_DEBUG"Program security data END\n"); */
 
@@ -897,7 +905,7 @@ this data should come from the HEX output of PSoC Designer.*/
 	loads abTargetDataOUT[] with security data
 	that was used in secure bit stream*/
 	/*INTLOCK(); */
-	local_irq_save(flags);
+	/*local_irq_save(flags);*/
 	fIsError = fLoadSecurityData(bBankCounter);
 	if (fIsError) {
 		ErrorTrap(fIsError);
@@ -911,14 +919,14 @@ this data should come from the HEX output of PSoC Designer.*/
 	}
 #endif
 	/*INTFREE(); */
-	local_irq_restore(flags);
+	/*local_irq_restore(flags);*/
 	/*printk(KERN_DEBUG"Load security data END\n"); */
 #endif				/* security end */
 
 	/*=======================================================
 	PTJ: Doing Checksum after READ-SECURITY*/
 	/*INTLOCK(); */
-	local_irq_save(flags);
+	/*local_irq_save(flags);*/
 	iChecksumTarget = 0;
 	for (bBankCounter = 0; bBankCounter < NUM_BANKS; bBankCounter++) {
 		fIsError = fAccTargetBankChecksum(&iChecksumTarget);
@@ -929,7 +937,7 @@ this data should come from the HEX output of PSoC Designer.*/
 	}
 
 	/*INTFREE(); */
-	local_irq_restore(flags);
+	/*local_irq_restore(flags);*/
 
 	/*printk(KERN_DEBUG"Checksum : iChecksumTarget (0x%X)\n",
 	(unsigned char)iChecksumTarget);

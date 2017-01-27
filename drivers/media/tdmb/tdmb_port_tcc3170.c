@@ -51,8 +51,15 @@
 #include "tcbd_stream_parser.h"
 #include "tcc_fic_decoder.h"
 #include "tcbd_drv_ip.h"
+#include "tcc_fic_decoder.h"
 
 #include "tcbd_hal.h"
+
+#if defined(CONFIG_MACH_U1_KOR_SKT) || defined(CONFIG_MACH_U1_KOR_KT)
+#define TCBD_CLOCK CLOCK_19200KHZ
+#else	/* for baffin */
+#define TCBD_CLOCK CLOCK_24576KHZ
+#endif
 
 /* #define TDMB_DEBUG_SCAN */
 
@@ -98,7 +105,7 @@ static bool __get_ensemble_info(struct ensemble_info_type *e_info
 	ensbl_info = tcc_fic_get_ensbl_info(1);
 	esbl = &ensbl_info->ensbl;
 
-	memset(e_info, 0, sizeof(e_info));
+	memset(e_info, 0, sizeof(struct ensemble_info_type));
 
 	e_info->ensem_freq = freq;
 	e_info->ensem_id = esbl->eid;
@@ -199,7 +206,7 @@ static bool tcc3170_power_on(void)
 #error
 #endif /* CONFIG_TDMB_SPI */
 			if (tcbd_device_start \
-				(&tcc3170_device, CLOCK_19200KHZ) < 0) {
+				(&tcc3170_device, TCBD_CLOCK) < 0) {
 				DPRINTK("could not start device!!\n");
 				tcbd_io_close(&tcc3170_device);
 				tdmb_control_gpio(false);
@@ -279,6 +286,7 @@ static s32 __set_frequency(unsigned long freqKHz, bool scan_mode)
 	u8 status;
 
 	tcbd_disable_irq(&tcc3170_device, 0);
+	tcc_fic_parser_init();
 	ret = tcbd_tune_frequency(&tcc3170_device, freqKHz, 1500);
 	if (ret < 0) {
 		DPRINTK("tcbd_tune_frequency fail %d\n", ret);
@@ -387,9 +395,10 @@ static void tcc3170_pull_data(void)
 	mutex_lock(&tcc3170_mutex);
 
 	ret = tcbd_read_irq_status(&tcc3170_device, &irq_status, &irq_error);
+	ret |= tcbd_clear_irq(&tcc3170_device, irq_status);
 	ret |= tcbd_read_stream(&tcc3170_device, buff_read, &size);
 	if (ret == 0 && !irq_error) {
-		tcbd_split_stream(buff_read, size);
+		tcbd_split_stream(0, buff_read, size);
 	} else {
 		DPRINTK("### buffer is full, skip the data "
 			"(ret:%d, status=0x%02X, error=0x%02X)  ###\n",
@@ -400,28 +409,13 @@ static void tcc3170_pull_data(void)
 			tcc3170_device.selected_buff,
 			tcc3170_device.intr_threshold);
 		/*tcbd_reset_ip(device, TCBD_SYS_COMP_ALL, TCBD_SYS_COMP_EP);*/
-		tcbd_init_parser(NULL);
+		tcbd_init_parser(0, NULL);
 	}
-	ret = tcbd_read_irq_status(&tcc3170_device, &irq_status, &irq_error);
-	if (ret != 0 || irq_error != 0) {
-		DPRINTK("### buffer is full, skip the data "
-			"(ret:%d, status=0x%02X, error=0x%02X)  ###\n",
-				ret, irq_status, irq_error);
-		tcbd_init_stream_data_config(&tcc3170_device,
-			ENABLE_CMD_FIFO,
-			tcc3170_device.selected_buff,
-			tcc3170_device.intr_threshold);
-		/*tcbd_reset_ip(
-			device, TCBD_SYS_COMP_ALL, TCBD_SYS_COMP_EP);*/
-		tcbd_init_parser(NULL);
-
-	}
-	tcbd_clear_irq(&tcc3170_device, irq_status);
-
 	mutex_unlock(&tcc3170_mutex);
 }
 
 static s32 __stream_callback(
+	s32 _dev_idx,
 	u8 *_stream,
 	s32 _size,
 	u8 _subch_id,
@@ -467,7 +461,7 @@ static bool tcc3170_init(void)
 #else
 #error
 #endif
-	tcbd_init_parser(__stream_callback);
+	tcbd_init_parser(0, __stream_callback);
 
 	return true;
 }

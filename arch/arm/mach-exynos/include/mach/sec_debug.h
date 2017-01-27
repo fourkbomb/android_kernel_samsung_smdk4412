@@ -3,8 +3,17 @@
 
 #include <linux/sched.h>
 #include <linux/semaphore.h>
+#include <linux/input.h>
 
 #ifdef CONFIG_SEC_DEBUG
+
+#define SEC_DEBUG_NAME		"sec_debug"
+
+#define SET_DEBUG_KEY(_key, _state) 	\
+{	\
+	.code = _key,	\
+	.state = _state,	\
+}
 
 union sec_debug_level_t {
 	struct {
@@ -12,6 +21,24 @@ union sec_debug_level_t {
 		u16 user_fault;
 	} en;
 	u32 uint_val;
+};
+
+struct input_debug_key_state {
+	bool state;
+	u32 code;
+};
+
+struct input_debug_pdata {
+	struct input_debug_key_state *key_state;
+	int nkeys;
+};
+
+struct input_debug_drv_data {
+	struct input_handler input_handler;
+	struct input_debug_pdata *pdata;
+	struct input_device_id input_ids[2];
+	int crash_key_cnt;
+	kernel_ulong_t keybit[INPUT_DEVICE_ID_KEY_MAX / BITS_PER_LONG + 1];
 };
 
 extern union sec_debug_level_t sec_debug_level;
@@ -80,6 +107,8 @@ extern void __sec_debug_task_log(int cpu, struct task_struct *task);
 extern void __sec_debug_irq_log(unsigned int irq, void *fn, int en);
 extern void __sec_debug_work_log(struct worker *worker,
 				 struct work_struct *work, work_func_t f);
+extern void __sec_debug_hrtimer_log(struct hrtimer *timer,
+			enum hrtimer_restart (*fn) (struct hrtimer *), int en);
 
 static inline void sec_debug_task_log(int cpu, struct task_struct *task)
 {
@@ -100,18 +129,25 @@ static inline void sec_debug_work_log(struct worker *worker,
 		__sec_debug_work_log(worker, work, f);
 }
 
-#ifdef CONFIG_SEC_DEBUG_SOFTIRQ_LOG
+static inline void sec_debug_hrtimer_log(struct hrtimer *timer,
+			 enum hrtimer_restart (*fn) (struct hrtimer *), int en)
+{
+#ifdef CONFIG_SEC_DEBUG_HRTIMER_LOG
+	if (unlikely(sec_debug_level.en.kernel_fault))
+		__sec_debug_hrtimer_log(timer, fn, en);
+#endif
+}
+
 static inline void sec_debug_softirq_log(unsigned int irq, void *fn, int en)
 {
+#ifdef CONFIG_SEC_DEBUG_SOFTIRQ_LOG
 	if (unlikely(sec_debug_level.en.kernel_fault))
 		__sec_debug_irq_log(irq, fn, en);
-}
-#else
-static inline void sec_debug_softirq_log(unsigned int irq, void *fn, int en)
-{
-}
 #endif
+}
+
 #else
+
 static inline void sec_debug_task_log(int cpu, struct task_struct *task)
 {
 }
@@ -122,6 +158,11 @@ static inline void sec_debug_irq_log(unsigned int irq, void *fn, int en)
 
 static inline void sec_debug_work_log(struct worker *worker,
 				      struct work_struct *work, work_func_t f)
+{
+}
+
+static inline void sec_debug_hrtimer_log(struct hrtimer *timer,
+			 enum hrtimer_restart (*fn) (struct hrtimer *), int en)
 {
 }
 
@@ -181,7 +222,7 @@ static inline void debug_rwsemaphore_up_log(struct rw_semaphore *sem)
 
 enum sec_debug_aux_log_idx {
 	SEC_DEBUG_AUXLOG_CPU_BUS_CLOCK_CHANGE,
-	SEC_DEBUG_AUXLOG_LOGBUF_LOCK_CHANGE,
+	SEC_DEBUG_AUXLOG_CMA_RBTREE_CHANGE,
 	SEC_DEBUG_AUXLOG_ITEM_MAX,
 };
 
@@ -189,6 +230,14 @@ enum sec_debug_aux_log_idx {
 extern void sec_debug_aux_log(int idx, char *fmt, ...);
 #else
 #define sec_debug_aux_log(idx, ...) do { } while (0)
+#endif
+
+#ifdef CONFIG_SEC_AVC_LOG
+extern void sec_debug_avc_log(char *fmt, ...);
+#endif
+
+#if defined(CONFIG_MACH_Q1_BD)
+extern int sec_debug_panic_handler_safe(void *buf);
 #endif
 
 extern void read_lcd_register(void);

@@ -18,6 +18,10 @@
 #include <linux/synaptics_s7301.h>
 #include "synaptics_sysfs.h"
 
+#if defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S7301_KEYLED)
+struct device *synaptics_with_gpio_led_device;
+#endif
+
 const char *sec_sysfs_cmd_list[] = {
 	"fw_update",
 	"get_fw_ver_bin",
@@ -50,7 +54,11 @@ static int synaptics_ts_load_fw(struct synaptics_drv_data *data)
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
+#if defined(CONFIG_MACH_KONA)
+	fp = filp_open(SYNAPTICS_FW2, O_RDONLY, S_IRUSR);
+#else
 	fp = filp_open(SYNAPTICS_FW, O_RDONLY, S_IRUSR);
+#endif
 	if (IS_ERR(fp)) {
 		printk(KERN_ERR "[TSP] failed to open %s.\n", SYNAPTICS_FW);
 		error = -ENOENT;
@@ -63,8 +71,13 @@ static int synaptics_ts_load_fw(struct synaptics_drv_data *data)
 		fw_data = kzalloc(fw_size, GFP_KERNEL);
 		nread = vfs_read(fp, (char __user *)fw_data,
 			fw_size, &fp->f_pos);
+#if defined(CONFIG_MACH_KONA)
+        printk(KERN_DEBUG "[TSP] start, file path %s, size %u Bytes\n",
+		       SYNAPTICS_FW2, fw_size);
+#else
 		printk(KERN_DEBUG "[TSP] start, file path %s, size %u Bytes\n",
 		       SYNAPTICS_FW, fw_size);
+#endif
 		if (nread != fw_size) {
 			printk(KERN_ERR
 			       "[TSP] failed to read firmware file, nread %u Bytes\n",
@@ -142,12 +155,23 @@ static void soft_reset(struct synaptics_drv_data *data)
 
 static void check_all_raw_cap(struct synaptics_drv_data *data)
 {
-	int i;
-	u8 *buff;
+	int i, j, k=0;
 	u16 temp = 0;
-	u16 length = data->x_line * data->y_line * 2;
+	u16 length;
 
-	buff = kzalloc(length, GFP_KERNEL);
+#if defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S7301_KEYS)
+	u8 escape_rx_line;
+
+	if (data->pdata->support_extend_button)
+		escape_rx_line = data->pdata->extend_button_map->nbuttons;
+	else
+		escape_rx_line = data->pdata->button_map->nbuttons;
+
+	length = data->x_line * (data->y_line + escape_rx_line) * 2;
+
+	if (NULL == data->references)
+		data->references = kzalloc(length, GFP_KERNEL);
+
 	data->refer_min = 0xffff;
 	data->refer_max = 0x0;
 
@@ -160,10 +184,61 @@ static void check_all_raw_cap(struct synaptics_drv_data *data)
 	/* read all report data */
 	synaptics_ts_read_block(data,
 		data->f54.data_base_addr + 3,
-		buff, length);
+		data->references, length);
+
+	for (i = 0; i < data->x_line; i++) {
+		for (j = 0; j < data->y_line + escape_rx_line; j++) {
+			temp = (u16)(data->references[k] |
+				(data->references[k+1] << 8));
+
+			if (k != 0 && j !=0) {
+				if (j >= data->y_line) {
+					if (data->debug) {
+						printk(KERN_DEBUG
+							"[TSP][skip] raw cap[%d] : %u\n",
+							k, temp);
+					}
+					k += 2;
+					continue;
+				}
+			}
+			if (data->debug) {
+				if (data->debug) {
+					printk(KERN_DEBUG
+						"[TSP] raw cap[%d] : %u\n",
+						k, temp);
+				}
+			}
+			if (temp < data->refer_min)
+				data->refer_min = temp;
+			if (temp > data->refer_max)
+				data->refer_max = temp;
+			k += 2;
+		}
+	}
+#else
+	length = data->x_line * data->y_line * 2;
+
+	if (NULL == data->references)
+		data->references = kzalloc(length, GFP_KERNEL);
+
+	data->refer_min = 0xffff;
+	data->refer_max = 0x0;
+
+	/* set the index */
+	set_report_index(data, 0x0000);
+
+	/* Set the GetReport bit to run the AutoScan */
+	set_report_mode(data, 0x01, 0x00);
+
+	/* read all report data */
+	synaptics_ts_read_block(data,
+		data->f54.data_base_addr + 3,
+		data->references, length);
 
 	for (i = 0; i < length; i += 2) {
-		temp = (u16)(buff[i] | (buff[i+1] << 8));
+		temp = (u16)(data->references[i] |
+			(data->references[i+1] << 8));
 		if (data->debug) {
 			if ((temp <= FULL_RAW_CAP_LOWER_LIMIT)
 				|| (temp >= FULL_RAW_CAP_UPPER_LIMIT)) {
@@ -172,25 +247,23 @@ static void check_all_raw_cap(struct synaptics_drv_data *data)
 					i, temp);
 			}
 		}
-		data->references[i / 2] = temp;
 		if (temp < data->refer_min)
 			data->refer_min = temp;
 		if (temp > data->refer_max)
 			data->refer_max = temp;
 	}
+#endif
 	printk(KERN_DEBUG "[TSP] min : %u, max : %u\n",
 		data->refer_min, data->refer_max);
-
-	kfree(buff);
 }
 
 static void check_tx_to_tx(struct synaptics_drv_data *data)
 {
 	int i = 0;
-	u8 *buff;
 	u8 length = (data->x_line / 8) + 1;
 
-	buff = kzalloc(length, GFP_KERNEL);
+	if (NULL == data->tx_to_tx)
+		data->tx_to_tx = kzalloc(data->x_line, GFP_KERNEL);
 
 	/* set the index */
 	set_report_index(data, 0x0000);
@@ -200,7 +273,7 @@ static void check_tx_to_tx(struct synaptics_drv_data *data)
 
 	synaptics_ts_read_block(data,
 		data->f54.data_base_addr + 3,
-		buff, length);
+		data->tx_to_tx, length);
 
 	/*
 	* Byte-0 houses Tx responses Tx7:Tx0
@@ -209,7 +282,7 @@ static void check_tx_to_tx(struct synaptics_drv_data *data)
 	* Byte-3 houses Tx responses Tx31:Tx24
 	*/
 	for (i = 0; i < data->x_line; i++) {
-		if (buff[i / 8] & (0x1 << i % 8)) {
+		if (data->tx_to_tx[i / 8] & (0x1 << i % 8)) {
 			data->tx_to_tx[i] = 0x1;
 			printk(KERN_WARNING
 				"[TSP] %s %d short\n",
@@ -217,16 +290,15 @@ static void check_tx_to_tx(struct synaptics_drv_data *data)
 		} else
 			data->tx_to_tx[i] = 0x0;
 	}
-	kfree(buff);
 }
 
 static void check_tx_to_gnd(struct synaptics_drv_data *data)
 {
 	int i = 0;
-	u8 *buff;
 	u8 length = (data->x_line / 8) + 1;
 
-	buff = kzalloc(length, GFP_KERNEL);
+	if (NULL == data->tx_to_gnd)
+		data->tx_to_gnd = kzalloc(data->x_line, GFP_KERNEL);
 
 	/* set the index */
 	set_report_index(data, 0x0000);
@@ -236,7 +308,7 @@ static void check_tx_to_gnd(struct synaptics_drv_data *data)
 
 	synaptics_ts_read_block(data,
 		data->f54.data_base_addr + 3,
-		buff, length);
+		data->tx_to_gnd, length);
 
 	/*
 	* Byte-0 houses Tx responses Tx7:Tx0
@@ -245,7 +317,7 @@ static void check_tx_to_gnd(struct synaptics_drv_data *data)
 	* Byte-3 houses Tx responses Tx31:Tx24
 	*/
 	for (i = 0; i < data->x_line; i++) {
-		if (buff[i / 8] & (0x1 << i % 8)) {
+		if (data->tx_to_gnd[i / 8] & (0x1 << i % 8)) {
 			data->tx_to_gnd[i] = 0x1;
 			printk(KERN_WARNING
 				"[TSP] %s %d short\n",
@@ -253,7 +325,6 @@ static void check_tx_to_gnd(struct synaptics_drv_data *data)
 		} else
 			data->tx_to_gnd[i] = 0x0;
 	}
-	kfree(buff);
 }
 
 static void check_rx_to_rx(struct synaptics_drv_data *data)
@@ -336,6 +407,57 @@ static void check_rx_to_rx(struct synaptics_drv_data *data)
 	kfree(buff);
 }
 
+#if defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S7301_KEYS)
+static void check_delta_cap(struct synaptics_drv_data *data)
+{
+	int i, k=0;
+	u16 temp = 0;
+	u16 length;
+	u8 escape_rx_line;
+    u8 *btn_data;
+	int start_button_data;
+
+	if (data->pdata->support_extend_button)
+		escape_rx_line = data->pdata->extend_button_map->nbuttons;
+	else
+		escape_rx_line = data->pdata->button_map->nbuttons;
+
+	length = escape_rx_line * 2;
+
+    btn_data = kzalloc(length, GFP_KERNEL);
+
+	data->refer_min = 0xffff;
+	data->refer_max = 0x0;
+
+	start_button_data = ((data->x_line * (data->y_line + escape_rx_line)) + data->y_line) * 2;
+
+	/* set the index */
+	set_report_index(data, start_button_data);
+
+	/* Set the GetReport bit to run the AutoScan */
+	set_report_mode(data, 0x01, 0x00);
+
+	/* read all report data */
+	synaptics_ts_read_block(data,
+		data->f54.data_base_addr + 3,
+		btn_data, length);
+
+	for (i = 0; i < escape_rx_line; i++) {
+		temp = (u16)(btn_data[k] | (btn_data[k+1] << 8));
+		printk(KERN_DEBUG "[TSP] index[btn:%d] data[0x%x]\n", i, temp);
+
+		if (temp > BUTTON_THRESHOLD_LIMIT)
+			data->pdata->button_pressure[i] = BUTTON_THRESHOLD_MIN;
+		else
+			data->pdata->button_pressure[i] = temp;
+		k = k + 2;
+	}
+
+    kfree(btn_data);
+}
+#endif
+
+
 static void check_diagnostics_mode(struct synaptics_drv_data *data)
 {
 	/* Set report mode */
@@ -357,13 +479,17 @@ static void check_diagnostics_mode(struct synaptics_drv_data *data)
 		/* check the result */
 		check_rx_to_rx(data);
 		break;
-
+#if defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S7301_KEYS)
+	case REPORT_TYPE_DELTA_CAP:
+		check_delta_cap(data);
+		break;
+#endif
 	default:
 		break;
 	}
 
-	/* Reset */
-	soft_reset(data);
+	if (data->cmd_report_type != REPORT_TYPE_DELTA_CAP)
+		soft_reset(data);
 }
 
 static u16 synaptics_get_threshold(struct synaptics_drv_data *data)
@@ -379,10 +505,8 @@ static u16 synaptics_get_threshold(struct synaptics_drv_data *data)
 static void synaptics_fw_phone(struct synaptics_drv_data *data,
 	u8 *buf)
 {
-	strncpy(buf, data->firm_version,
-		sizeof(data->firm_version));
-	printk(KERN_DEBUG "[TSP] firm phone : %s\n",
-		data->firm_version);
+	sprintf(buf, "%c%c%.2d%.2d00", data->firm_version[0], data->firm_version[1], data->firm_version[2], data->firm_version[3]);
+	printk(KERN_DEBUG "[TSP] firm phone : %s\n", buf);
 }
 
 static void synaptics_fw_panel(struct synaptics_drv_data *data,
@@ -392,6 +516,8 @@ static void synaptics_fw_panel(struct synaptics_drv_data *data,
 	synaptics_ts_read_block(data,
 		data->f34.control_base_addr,
 		buf, 4);
+
+	sprintf(buf, "%c%c%.2d%.2d00", buf[0], buf[1], buf[2], buf[3]);
 
 	printk(KERN_DEBUG "[TSP] firm panel : %s\n", buf);
 }
@@ -430,12 +556,30 @@ static u16 get_value(struct synaptics_drv_data *data,
 	u32 pos_x, u32 pos_y)
 {
 	u16 tmp = 0;
-	u16 position = (u16)(data->y_line * pos_x) + pos_y;
+	u8 escape_rx_line;
 
 	switch (data->cmd_report_type) {
 	case REPORT_TYPE_RAW_CAP:
-		tmp = data->references[position];
+	{
+		u16 position;
+#if defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S7301_KEYS)
+		if (data->pdata->support_extend_button)
+			escape_rx_line =
+				data->pdata->extend_button_map->nbuttons;
+		else
+			escape_rx_line =
+				data->pdata->button_map->nbuttons;
+
+		position = (u16)((data->y_line +
+			escape_rx_line) * pos_x) + pos_y;
+#else
+		position = (u16)(data->y_line * pos_x) + pos_y;
+#endif
+		position *= 2;
+		tmp = (u16)(data->references[position] |
+			(data->references[position+1] << 8));
 		break;
+	}
 
 	case REPORT_TYPE_TX_TO_TX:
 		tmp = data->tx_to_tx[pos_x];
@@ -489,7 +633,9 @@ static int sec_sysfs_check_cmd(u8 *buf,
 			printk(KERN_DEBUG
 				"[TSP] param[%u] : %s\n",
 				cnt2, tmp);
-			if (!kstrtouint(tmp, 10, &param[cnt2]))
+			if (kstrtouint(tmp, 10, &param[cnt2]))
+				cmd = CMD_LIST_MAX;
+			else
 				cnt2++;
 			kfree(tmp);
 			start = cnt + 1;
@@ -605,8 +751,12 @@ static void sec_sysfs_cmd(struct synaptics_drv_data *data,
 		break;
 
 	case CMD_LIST_READ_REF:
+		synaptics_ts_write_data(data,
+			0xf0, 0x01);
 		data->cmd_report_type = REPORT_TYPE_RAW_CAP;
 		check_diagnostics_mode(data);
+		synaptics_ts_write_data(data,
+			0xf0, 0x00);
 		sec_sysfs_numstr(data->refer_min, buf2);
 		tmp_str[cnt++] = buf2;
 		tmp_str[cnt++] = ",";
@@ -630,28 +780,24 @@ static void sec_sysfs_cmd(struct synaptics_drv_data *data,
 		break;
 
 	case CMD_LIST_GET_REF:
-		data->cmd_report_type = REPORT_TYPE_RAW_CAP;
 		temp = get_value(data, param[0], param[1]);
 		sec_sysfs_numstr(temp, buf2);
 		tmp_str[cnt++] = buf2;
 		break;
 
 	case CMD_LIST_GET_RX:
-		data->cmd_report_type = REPORT_TYPE_RX_TO_RX;
 		temp = get_value(data, param[0], param[1]);
 		sec_sysfs_numstr(temp, buf2);
 		tmp_str[cnt++] = buf2;
 		break;
 
 	case CMD_LIST_GET_TX:
-		data->cmd_report_type = REPORT_TYPE_TX_TO_TX;
 		temp = get_value(data, param[0], param[1]);
 		sec_sysfs_numstr(temp, buf2);
 		tmp_str[cnt++] = buf2;
 		break;
 
 	case CMD_LIST_GET_TXG:
-		data->cmd_report_type = REPORT_TYPE_TX_TO_GND;
 		temp = get_value(data, param[0], param[1]);
 		sec_sysfs_numstr(temp, buf2);
 		tmp_str[cnt++] = buf2;
@@ -721,20 +867,10 @@ static ssize_t sec_sysfs_show_cmd_list(struct device *dev,
 			"%s\n", sec_sysfs_cmd_list[i]);
 	return cnt;
 }
-static void sec_sysfs_set_debug(struct synaptics_drv_data *data,
-	const char *str)
-{
-	u32 buf = 0;
-	sscanf(str, "%u", &buf);
-	data->debug = !!buf;
-}
 
 void synaptics_ts_drawing_mode(struct synaptics_drv_data *data)
 {
 	u8 val = 0;
-#if 0
-	u8 threshold = 0;
-#endif
 	u16 addr = 0;
 
 	addr = data->f11.control_base_addr;
@@ -742,26 +878,15 @@ void synaptics_ts_drawing_mode(struct synaptics_drv_data *data)
 
 	if (!data->drawing_mode) {
 		val |= ABS_POS_BIT;
-#if 0
-		threshold = 0x80;
-#endif
 		printk(KERN_DEBUG
 			"[TSP] set normal mode\n");
 	} else {
 		val &= ~(ABS_POS_BIT);
-#if 0
-		threshold = 0x4d;
-#endif
 		printk(KERN_DEBUG
 			"[TSP] set drawing mode\n");
 	}
 	/* set ads pos filter */
 	synaptics_ts_write_data(data, addr, val);
-#if 0
-	/* set pixel threshold */
-	addr = data->f54.control_base_addr + 4;
-	synaptics_ts_write_data(data, addr, threshold);
-#endif
 }
 
 static void set_abs_pos_filter(struct synaptics_drv_data *data,
@@ -773,6 +898,24 @@ static void set_abs_pos_filter(struct synaptics_drv_data *data,
 	if (data->ready)
 		synaptics_ts_drawing_mode(data);
 }
+
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+static void sec_sysfs_set_debug(struct synaptics_drv_data *data,
+	const char *str)
+{
+	u32 buf = 0;
+	sscanf(str, "%u", &buf);
+	data->debug = !!buf;
+}
+
+static void set_config(struct synaptics_drv_data *data,
+	const char *str)
+{
+	u32 buf1, buf2 = 0;
+	sscanf(str, "%u %u", &buf1, &buf2);
+	synaptics_ts_write_data(data, buf1, buf2);
+}
+#endif
 
 #define SET_SHOW_FN(name, fn, format, ...)	\
 static ssize_t sec_sysfs_show_##name(struct device *dev,	\
@@ -803,8 +946,12 @@ SET_SHOW_FN(cmd_result,
 	"%s", data->cmd_result);
 
 SET_STORE_FN(cmd, sec_sysfs_cmd);
-SET_STORE_FN(set_debug, sec_sysfs_set_debug);
 SET_STORE_FN(set_jitter, set_abs_pos_filter);
+
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+SET_STORE_FN(set_debug, sec_sysfs_set_debug);
+SET_STORE_FN(set_config, set_config);
+#endif
 
 static DEVICE_ATTR(cmd, S_IWUSR | S_IWGRP,
 	NULL, sec_sysfs_store_cmd);
@@ -814,18 +961,26 @@ static DEVICE_ATTR(cmd_result, S_IRUGO,
 	sec_sysfs_show_cmd_result, NULL);
 static DEVICE_ATTR(cmd_list, S_IRUGO,
 	sec_sysfs_show_cmd_list, NULL);
-static DEVICE_ATTR(set_debug, S_IWUSR,
-	NULL, sec_sysfs_store_set_debug);
 static DEVICE_ATTR(set_jitter, S_IWUSR | S_IWGRP,
 	NULL, sec_sysfs_store_set_jitter);
+
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+static DEVICE_ATTR(set_debug, S_IWUSR,
+	NULL, sec_sysfs_store_set_debug);
+static DEVICE_ATTR(set_config, S_IWUSR,
+	NULL, sec_sysfs_store_set_config);
+#endif
 
 static struct attribute *sec_sysfs_attributes[] = {
 	&dev_attr_cmd.attr,
 	&dev_attr_cmd_status.attr,
 	&dev_attr_cmd_result.attr,
 	&dev_attr_cmd_list.attr,
-	&dev_attr_set_debug.attr,
 	&dev_attr_set_jitter.attr,
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	&dev_attr_set_debug.attr,
+	&dev_attr_set_config.attr,
+#endif
 	NULL,
 };
 
@@ -833,14 +988,266 @@ static struct attribute_group sec_sysfs_attr_group = {
 	.attrs = sec_sysfs_attributes,
 };
 
+#if defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S7301_KEYLED)
+static ssize_t sec_touchkey_sensitivity_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t size)
+{
+	printk(KERN_INFO "[TSP] do noting!\n");
+	return size;
+}
+
+static ssize_t sec_touchkey_back_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct synaptics_drv_data *data = dev_get_drvdata(dev);
+	int irq = gpio_to_irq(data->gpio);
+
+	disable_irq(irq);
+	synaptics_ts_write_data(data, 0xf0, 0x01);
+	data->cmd_report_type = REPORT_TYPE_DELTA_CAP;
+	check_diagnostics_mode(data);
+	synaptics_ts_write_data(data, 0xf0, 0x00);
+	enable_irq(irq);
+
+	if (data->pdata->support_extend_button)
+		return sprintf(buf, "%d\n", data->pdata->button_pressure[BUTTON4]);
+	else
+		return sprintf(buf, "%d\n", data->pdata->button_pressure[BUTTON2]);
+}
+
+static ssize_t sec_touchkey_menu_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct synaptics_drv_data *data = dev_get_drvdata(dev);
+	int irq = gpio_to_irq(data->gpio);
+
+	disable_irq(irq);
+	synaptics_ts_write_data(data, 0xf0, 0x01);
+	data->cmd_report_type = REPORT_TYPE_DELTA_CAP;
+	check_diagnostics_mode(data);
+	synaptics_ts_write_data(data, 0xf0, 0x00);
+	enable_irq(irq);
+
+	if (data->pdata->support_extend_button)
+		return sprintf(buf, "%d\n", data->pdata->button_pressure[BUTTON2]);
+	else
+		return sprintf(buf, "%d\n", data->pdata->button_pressure[BUTTON1]);
+}
+
+static ssize_t sec_touchkey_threshold_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct synaptics_drv_data *data = dev_get_drvdata(dev);
+
+	if (data->pdata->support_extend_button)
+		return sprintf(buf, "%d %d %d %d %d\n",
+			BUTTON5_0_THRESHOLD,
+			BUTTON5_1_THRESHOLD,
+			BUTTON5_2_THRESHOLD,
+			BUTTON5_3_THRESHOLD,
+			BUTTON5_4_THRESHOLD);
+	else
+		return sprintf(buf, "%d %d\n",
+			BUTTON2_0_THRESHOLD,
+			BUTTON2_1_THRESHOLD);
+}
+
+static ssize_t sec_touchkey_dummy_btn1_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct synaptics_drv_data *data = dev_get_drvdata(dev);
+	int irq = gpio_to_irq(data->gpio);
+
+	disable_irq(irq);
+	synaptics_ts_write_data(data, 0xf0, 0x01);
+	data->cmd_report_type = REPORT_TYPE_DELTA_CAP;
+	check_diagnostics_mode(data);
+	synaptics_ts_write_data(data, 0xf0, 0x00);
+	enable_irq(irq);
+
+	if (data->pdata->support_extend_button)
+		return sprintf(buf, "%d\n", data->pdata->button_pressure[BUTTON1]);
+	else {
+		printk(KERN_DEBUG "[TSP] dummy btn1 not supported\n");
+		return 0;
+	}
+}
+
+static ssize_t sec_touchkey_dummy_btn3_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct synaptics_drv_data *data = dev_get_drvdata(dev);
+	int irq = gpio_to_irq(data->gpio);
+
+	disable_irq(irq);
+	synaptics_ts_write_data(data, 0xf0, 0x01);
+	data->cmd_report_type = REPORT_TYPE_DELTA_CAP;
+	check_diagnostics_mode(data);
+	synaptics_ts_write_data(data, 0xf0, 0x00);
+	enable_irq(irq);
+
+	if (data->pdata->support_extend_button)
+		return sprintf(buf, "%d\n", data->pdata->button_pressure[BUTTON3]);
+	else {
+		printk(KERN_DEBUG "[TSP] dummy btn3 not supported\n");
+		return 0;
+	}
+}
+
+static ssize_t sec_touchkey_dummy_btn5_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct synaptics_drv_data *data = dev_get_drvdata(dev);
+	int irq = gpio_to_irq(data->gpio);
+
+	disable_irq(irq);
+	synaptics_ts_write_data(data, 0xf0, 0x01);
+	data->cmd_report_type = REPORT_TYPE_DELTA_CAP;
+	check_diagnostics_mode(data);
+	synaptics_ts_write_data(data, 0xf0, 0x00);
+	enable_irq(irq);
+
+	if (data->pdata->support_extend_button)
+		return sprintf(buf, "%d\n", data->pdata->button_pressure[BUTTON5]);
+	else {
+		printk(KERN_DEBUG "[TSP] dummy btn5 not supported\n");
+		return 0;
+	}
+}
+
+static ssize_t sec_touchkey_button_all_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct synaptics_drv_data *data = dev_get_drvdata(dev);
+	int irq = gpio_to_irq(data->gpio);
+
+	disable_irq(irq);
+	synaptics_ts_write_data(data, 0xf0, 0x01);
+	data->cmd_report_type = REPORT_TYPE_DELTA_CAP;
+	check_diagnostics_mode(data);
+	synaptics_ts_write_data(data, 0xf0, 0x00);
+	enable_irq(irq);
+
+	if (data->pdata->support_extend_button)
+		return sprintf(buf, "%d %d %d %d %d\n",
+			data->pdata->button_pressure[BUTTON1],
+			data->pdata->button_pressure[BUTTON2],
+			data->pdata->button_pressure[BUTTON3],
+			data->pdata->button_pressure[BUTTON4],
+			data->pdata->button_pressure[BUTTON5]);
+	else
+		return sprintf(buf, "%d %d\n",
+			data->pdata->button_pressure[BUTTON1],
+			data->pdata->button_pressure[BUTTON2]);
+}
+
+static ssize_t sec_touchkey_button_status_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct synaptics_drv_data *data = dev_get_drvdata(dev);
+	u8 int_status = 0;
+	u8 button_status = 0;
+
+	/* check interrupt status */
+	synaptics_ts_read_data(data,
+		data->f01.data_base_addr + 1,
+		&int_status);
+
+	/* check button status */
+	synaptics_ts_read_data(data,
+		data->f1a.data_base_addr,
+		&button_status);
+
+	return sprintf(buf, "%d %d\n",
+		int_status,
+		button_status);
+}
+
+static ssize_t sec_brightness_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t size)
+{
+	struct synaptics_drv_data *data = dev_get_drvdata(dev);
+	int on_off;
+
+	if (sscanf(buf, "%d\n", &on_off) == 1) {
+		printk(KERN_DEBUG "[TSPLED] touch_led_on [%d]\n", on_off);
+		data->pdata->led_control(on_off);
+	} else {
+		printk(KERN_DEBUG "[TSPLED] buffer read failed\n");
+	}
+	return size;
+}
+
+static ssize_t sec_extra_button_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t size)
+{
+	int extra_event;
+
+	if (sscanf(buf, "%d\n", &extra_event) == 1) {
+		printk(KERN_DEBUG "[TSP] extra event [%d]\n", extra_event);
+	} else {
+		printk(KERN_DEBUG "[TSP] buffer read failed\n");
+	}
+	return size;
+}
+
+static DEVICE_ATTR(touch_sensitivity, S_IRUGO | S_IWUSR,
+	NULL, sec_touchkey_sensitivity_store);
+static DEVICE_ATTR(touchkey_back, S_IRUGO | S_IWUSR,
+	sec_touchkey_back_show, NULL);
+static DEVICE_ATTR(touchkey_menu, S_IRUGO | S_IWUSR,
+	sec_touchkey_menu_show, NULL);
+static DEVICE_ATTR(touchkey_threshold, S_IRUGO | S_IWUSR,
+	sec_touchkey_threshold_show, NULL);
+static DEVICE_ATTR(touchkey_dummy_btn1, S_IRUGO | S_IWUSR,
+	sec_touchkey_dummy_btn1_show, NULL);
+static DEVICE_ATTR(touchkey_dummy_btn3, S_IRUGO | S_IWUSR,
+	sec_touchkey_dummy_btn3_show, NULL);
+static DEVICE_ATTR(touchkey_dummy_btn5, S_IRUGO | S_IWUSR,
+	sec_touchkey_dummy_btn5_show, NULL);
+static DEVICE_ATTR(touchkey_button_all, S_IRUGO | S_IWUSR,
+	sec_touchkey_button_all_show, NULL);
+static DEVICE_ATTR(brightness, S_IRUGO | S_IWUSR,
+	NULL, sec_brightness_store);
+static DEVICE_ATTR(extra_button_event, S_IRUGO | S_IWUSR,
+	NULL, sec_extra_button_store);
+static DEVICE_ATTR(touchkey_button_status, S_IRUGO | S_IWUSR,
+	sec_touchkey_button_status_show, NULL);
+
+static struct attribute *sec_touchkey_sysfs_attributes[] = {
+	&dev_attr_touch_sensitivity.attr,
+	&dev_attr_touchkey_back.attr,
+	&dev_attr_touchkey_menu.attr,
+	&dev_attr_touchkey_threshold.attr,
+	&dev_attr_touchkey_dummy_btn1.attr,
+	&dev_attr_touchkey_dummy_btn3.attr,
+	&dev_attr_touchkey_dummy_btn5.attr,
+	&dev_attr_touchkey_button_all.attr,
+	&dev_attr_brightness.attr,
+	&dev_attr_extra_button_event.attr,
+	&dev_attr_touchkey_button_status.attr,
+	NULL,
+};
+
+static struct attribute_group sec_touchkey_sysfs_attr_group = {
+	.attrs = sec_touchkey_sysfs_attributes,
+};
+#endif
+
 int set_tsp_sysfs(struct synaptics_drv_data *data)
 {
 	int ret = 0;
-	u16 tmp = 0;
-	tmp = data->x_line * data->y_line;
-	data->references = kzalloc(tmp * sizeof(u16), GFP_KERNEL);
-	data->tx_to_tx = kzalloc(data->x_line, GFP_KERNEL);
-	data->tx_to_gnd = kzalloc(data->x_line, GFP_KERNEL);
 
 	data->dev = device_create(sec_class, NULL, 0, data, "tsp");
 	if (IS_ERR(data->dev)) {
@@ -854,10 +1261,45 @@ int set_tsp_sysfs(struct synaptics_drv_data *data)
 		pr_err("[TSP] failed to create sysfs group\n");
 		goto err_device_create;
 	}
+
+#if defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S7301_KEYLED)
+	synaptics_with_gpio_led_device = device_create(sec_class,
+				NULL, 0, data, "sec_touchkey");
+	if (IS_ERR(synaptics_with_gpio_led_device)) {
+		pr_err("[TSP] failed to create device for tsp_touchkey sysfs\n");
+		ret = -ENODEV;
+		goto err_device_create;
+	}
+
+	ret = sysfs_create_group(&synaptics_with_gpio_led_device->kobj,
+				&sec_touchkey_sysfs_attr_group);
+	if (ret) {
+		pr_err("[TSP] failed to create sec_touchkey sysfs group\n");
+		goto err_device_create;
+	}
+#endif
 	return 0;
 
 err_device_create:
 	return ret;
+}
+
+void remove_tsp_sysfs(struct synaptics_drv_data *data)
+{
+	if (NULL != data->references)
+		kfree(data->references);
+	if (NULL != data->tx_to_tx)
+		kfree(data->tx_to_tx);
+	if (NULL != data->tx_to_gnd)
+		kfree(data->tx_to_gnd);
+
+	sysfs_remove_group(&data->dev->kobj, &sec_sysfs_attr_group);
+#if defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S7301_KEYLED)
+	sysfs_remove_group(&synaptics_with_gpio_led_device->kobj,
+			&sec_touchkey_sysfs_attr_group);
+#endif
+	put_device(data->dev);
+	device_unregister(data->dev);
 }
 
 MODULE_AUTHOR("junki671.min@samsung.com");

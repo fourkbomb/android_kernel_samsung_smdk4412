@@ -28,7 +28,7 @@
  */
 static const struct address_space_operations swap_aops = {
 	.writepage	= swap_writepage,
-	.set_page_dirty	= __set_page_dirty_nobuffers,
+	.set_page_dirty	= __set_page_dirty_no_writeback,
 	.migratepage	= migrate_page,
 };
 
@@ -68,7 +68,11 @@ void show_swap_cache_info(void)
  * __add_to_swap_cache resembles add_to_page_cache_locked on swapper_space,
  * but sets SwapCache flag and private instead of mapping and index.
  */
+#ifdef CONFIG_ZSWAP
+int __add_to_swap_cache(struct page *page, swp_entry_t entry)
+#else
 static int __add_to_swap_cache(struct page *page, swp_entry_t entry)
+#endif
 {
 	int error;
 

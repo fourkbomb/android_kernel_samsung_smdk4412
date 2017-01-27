@@ -355,9 +355,10 @@ static int serial_write(struct tty_struct *tty, const unsigned char *buf,
 
 	if (port->serial->dev->state == USB_STATE_NOTATTACHED)
 		goto exit;
-
-	dbg("%s - port %d, %d byte(s)", __func__, port->number, count);
-
+#ifdef CONFIG_MACH_M0
+	printk(KERN_INFO "%s - port %d, %d byte(s)",
+			__func__, port->number, count);
+#endif
 	/* pass on to the driver specific version of this function */
 	retval = port->serial->type->write(tty, port, buf, count);
 
@@ -1059,6 +1060,12 @@ int usb_serial_probe(struct usb_interface *interface,
 		serial->attached = 1;
 	}
 
+	/* Avoid race with tty_open and serial_install by setting the
+	 * disconnected flag and not clearing it until all ports have been
+	 * registered.
+	 */
+	serial->disconnected = 1;
+
 	if (get_free_serial(serial, num_ports, &minor) == NULL) {
 		dev_err(&interface->dev, "No more free serial devices\n");
 		goto probe_error;
@@ -1082,6 +1089,8 @@ int usb_serial_probe(struct usb_interface *interface,
 			port->dev_state = PORT_REGISTERED;
 		}
 	}
+
+	serial->disconnected = 0;
 
 	usb_serial_console_init(debug, minor);
 

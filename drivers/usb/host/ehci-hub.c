@@ -31,6 +31,14 @@
 
 #define	PORT_WAKE_BITS	(PORT_WKOC_E|PORT_WKDISC_E|PORT_WKCONN_E)
 
+#if defined(CONFIG_EMI_ERROR_RECOVERY)
+#define MDM_HSIC_PORT_NUM		2
+#define PORT_ENABLE_DISABLE		(1 << 2)
+#define PORT_ENABLE_DISABLE_CHANGE	(1 << 3)
+/* count reported port status change */
+static int portstatus_chg_cnt;
+#endif
+
 #ifdef	CONFIG_PM
 
 static int ehci_hub_control(
@@ -261,6 +269,12 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 		if (t1 & PORT_OWNER)
 			set_bit(port, &ehci->owned_ports);
 		else if ((t1 & PORT_PE) && !(t1 & PORT_SUSPEND)) {
+#ifdef CONFIG_MDM_HSIC_PM
+			/*clear RS bit before setting SUSP bit
+			* and wait for HCH to get set*/
+			if (ehci->susp_sof_bug)
+				ehci_halt(ehci);
+#endif
 			t2 |= PORT_SUSPEND;
 			set_bit(port, &ehci->bus_suspended);
 		}
@@ -311,8 +325,12 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 	if (ehci->bus_suspended)
 		udelay(150);
 
-	/* turn off now-idle HC */
-	ehci_halt (ehci);
+#ifdef CONFIG_MDM_HSIC_PM
+	/*if this bit is set, controller is already haled*/
+	if (!ehci->susp_sof_bug)
+#endif
+		/* turn off now-idle HC */
+		ehci_halt(ehci);
 	hcd->state = HC_STATE_SUSPENDED;
 
 	if (ehci->reclaim)
@@ -601,6 +619,13 @@ static int check_reset_complete (
 			return port_status;
 		}
 
+#ifdef CONFIG_EHCI_MODEM_PORTNUM
+		if ((index+1) == CONFIG_EHCI_MODEM_PORTNUM) {
+			/* modem connection port doesn't support handoff */
+			ehci_err(ehci, "port %d cannot handoff\n", index + 1);
+			return port_status;
+		}
+#endif
 		ehci_dbg (ehci, "port %d full speed --> companion\n",
 			index + 1);
 
@@ -1349,6 +1374,27 @@ static int ehci_hub_control (
 	if (status & ~0xffff)	/* only if wPortChange is interesting */
 #endif
 		dbg_port (ehci, "GetStatus", wIndex + 1, temp);
+
+#if defined(CONFIG_EMI_ERROR_RECOVERY)
+		if (temp & PORT_ENABLE_DISABLE_CHANGE) {
+			temp = ehci_readl(ehci, status_reg);
+			ehci_dbg(ehci, "recovery port status %d +\n", temp);
+
+			/* ignore 'Current Status Change', by writing 1 */
+			temp &= ~PORT_ENABLE_DISABLE;
+
+			/* clear 'Port Enable/Disable Change', by writng 1 */
+			temp |= PORT_ENABLE_DISABLE_CHANGE;
+
+			ehci_writel(ehci, temp, status_reg);
+			ehci_readl(ehci, status_reg);
+
+			ehci_dbg(ehci, "recovery port status %d -\n",
+						ehci_readl(ehci, status_reg));
+
+			portstatus_chg_cnt++;
+		}
+#endif
 		put_unaligned_le32(status, buf);
 		break;
 	case SetHubFeature:
@@ -1388,6 +1434,12 @@ static int ehci_hub_control (
 			if ((temp & PORT_PE) == 0
 					|| (temp & PORT_RESET) != 0)
 				goto error;
+#ifdef CONFIG_MDM_HSIC_PM
+			/*port gets suspended as part of bus suspend routine*/
+			if (!ehci->susp_sof_bug)
+				ehci_writel(ehci, temp | PORT_SUSPEND,
+						status_reg);
+#endif
 
 			/* After above check the port must be connected.
 			 * Set appropriate bit thus could put phy into low power
@@ -1395,7 +1447,13 @@ static int ehci_hub_control (
 			 */
 			temp &= ~PORT_WKCONN_E;
 			temp |= PORT_WKDISC_E | PORT_WKOC_E;
-			ehci_writel(ehci, temp | PORT_SUSPEND, status_reg);
+#ifdef CONFIG_MDM_HSIC_PM
+			if (ehci->susp_sof_bug)
+				ehci_writel(ehci, temp, status_reg);
+			else
+#endif
+				ehci_writel(ehci, temp | PORT_SUSPEND,
+						status_reg);
 			if (hostpc_reg) {
 				spin_unlock_irqrestore(&ehci->lock, flags);
 				msleep(5);/* 5ms for HCD enter low pwr mode */
@@ -1450,8 +1508,8 @@ static int ehci_hub_control (
 		 * or else system reboot).  See EHCI 2.3.9 and 4.14 for info
 		 * about the EHCI-specific stuff.
 		 */
-#ifdef CONFIG_HOST_COMPLIANT_TEST
 		case USB_PORT_FEAT_TEST:
+#ifdef CONFIG_HOST_COMPLIANT_TEST
 			ehci_info (ehci, "TEST MODE !!!!!!!!  selector == 0x%x \n",selector);
 
 			ehci_info (ehci, "running EHCI test %x on port %x\n",
@@ -1463,7 +1521,9 @@ static int ehci_hub_control (
 				goto error;
 			}
 			break;
-#endif
+#else
+			if (!selector || selector > 5)
+				goto error;
 			ehci_quiesce(ehci);
 
 			/* Put all enabled ports into suspend */
@@ -1481,7 +1541,7 @@ static int ehci_hub_control (
 			temp |= selector << 16;
 			ehci_writel(ehci, temp, status_reg);
 			break;
-
+#endif
 		default:
 			goto error;
 		}

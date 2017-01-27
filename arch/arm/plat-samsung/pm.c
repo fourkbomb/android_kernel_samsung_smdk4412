@@ -31,6 +31,16 @@
 
 #include <plat/pm.h>
 #include <mach/pm-core.h>
+#ifdef CONFIG_EXYNOS_C2C
+#include <mach/c2c.h>
+#endif
+#ifdef CONFIG_FAST_BOOT
+#include <linux/fake_shut_down.h>
+#endif
+
+#if defined(CONFIG_SEC_GPIO_DVS)
+#include <linux/secgpio_dvs.h>
+#endif
 
 /* for external use */
 unsigned long s3c_suspend_wakeup_stat;
@@ -247,6 +257,7 @@ void (*pm_cpu_sleep)(void);
 void (*pm_cpu_restore)(void);
 int (*pm_prepare)(void);
 void (*pm_finish)(void);
+unsigned int (*pm_check_eint_pend)(void);
 
 #define any_allowed(mask, allow) (((mask) & (allow)) != (allow))
 
@@ -280,6 +291,22 @@ static int s3c_pm_enter(suspend_state_t state)
 		return -EINVAL;
 	}
 
+	if (pm_check_eint_pend) {
+		u32 pending_eint = pm_check_eint_pend();
+		if (pending_eint) {
+			pr_warn("%s: Aborting sleep, EINT PENDING(0x%08x)\n",
+					__func__, pending_eint);
+			return -EBUSY;
+		}
+	}
+
+#ifdef CONFIG_EXYNOS_C2C
+	if (c2c_suspend() < 0) {
+		printk(KERN_ALERT "PM: c2c_suspend fail\n");
+		return -EBUSY;
+	}
+#endif
+
 	/* save all necessary core registers not covered by the drivers */
 
 	s3c_pm_save_gpios();
@@ -306,6 +333,33 @@ static int s3c_pm_enter(suspend_state_t state)
 
 	s3c_pm_check_store();
 
+#ifdef CONFIG_FAST_BOOT
+	if (fake_shut_down) {
+#if defined(CONFIG_SEC_MODEM) || defined(CONFIG_QC_MODEM)
+		/* Masking external wake up source
+		 * only enable  power key, FUEL ALERT, AP/IF PMIC IRQ
+		 * and SIM Detect Irq
+		 */
+#if defined(CONFIG_MACH_GD2)
+		__raw_writel(0xff7fdf7d, S5P_EINT_WAKEUP_MASK);
+#elif defined(CONFIG_MACH_GC2PD)
+		/* No SIM Detect IRQ */
+		__raw_writel(0xff77df7f, S5P_EINT_WAKEUP_MASK);
+#else /* Default - GC */
+		__raw_writel(0xdf77df7f, S5P_EINT_WAKEUP_MASK);
+#endif
+#else
+		/* Masking external wake up source
+		 * only enable  power key, FUEL ALERT, AP/IF PMIC IRQ */
+		__raw_writel(0xff77df7f, S5P_EINT_WAKEUP_MASK);
+#endif
+		printk(KERN_ALERT"EINT_MASK[ 0x%08x ]\n",
+				__raw_readl(S5P_EINT_WAKEUP_MASK));
+		/* disable all system int */
+		__raw_writel(0xffffffff, S5P_WAKEUP_MASK);
+	}
+#endif
+
 	/* send the cpu to sleep... */
 
 	s3c_pm_arch_stop_clocks();
@@ -326,6 +380,16 @@ static int s3c_pm_enter(suspend_state_t state)
 	/* restore the cpu state using the kernel's cpu init code. */
 
 	cpu_init();
+
+#if defined(CONFIG_SEC_GPIO_DVS) && defined(SECGPIO_SLEEP_DEBUGGING)
+	/************************ Caution !!! ****************************/
+	/* This function must be located in an appropriate position
+	 * to undo gpio SLEEP debugging setting when DUT wakes up.
+	 * It should be implemented in accordance with the specification of each BB vendor.
+	 */
+	/************************ Caution !!! ****************************/
+	gpio_dvs_undo_sleepgpio();
+#endif
 
 	s3c_pm_restore_core();
 	s3c_pm_restore_uarts();
@@ -350,6 +414,10 @@ static int s3c_pm_enter(suspend_state_t state)
 
 	s3c_pm_check_restore();
 
+#ifdef CONFIG_EXYNOS_C2C
+	c2c_resume();
+#endif
+
 	/* ok, let's return from sleep */
 
 	S3C_PMDBG("S3C PM Resume (post-restore)\n");
@@ -359,7 +427,11 @@ static int s3c_pm_enter(suspend_state_t state)
 static int s3c_pm_prepare(void)
 {
 	/* prepare check area if configured */
-
+#if defined(CONFIG_MACH_P8LTE) \
+	|| defined(CONFIG_MACH_U1_NA_SPR) \
+	|| defined(CONFIG_MACH_U1_NA_USCC)
+	disable_hlt();
+#endif
 	s3c_pm_check_prepare();
 
 	if (pm_prepare)
@@ -374,6 +446,11 @@ static void s3c_pm_finish(void)
 		pm_finish();
 
 	s3c_pm_check_cleanup();
+#if defined(CONFIG_MACH_P8LTE) \
+	|| defined(CONFIG_MACH_U1_NA_SPR) \
+	|| defined(CONFIG_MACH_U1_NA_USCC)
+	enable_hlt();
+#endif
 }
 
 #if defined(CONFIG_CHARGER_MANAGER)

@@ -56,9 +56,17 @@
 #include <plat/map-base.h>
 #include <plat/map-s5p.h>
 
+#ifdef CONFIG_EXYNOS_C2C
+#include <mach/c2c.h>
+#endif
+
 extern unsigned long sys_pwr_conf_addr;
 extern unsigned int l2x0_save[3];
 extern unsigned int scu_save[2];
+
+#ifdef CONFIG_FAST_RESUME
+static void exynos4_init_cpuidle_post_hib(void);
+#endif
 
 enum hc_type {
 	HC_SDHC,
@@ -320,11 +328,23 @@ static int loop_sdmmc_check(void)
  *		0b : B-session is not valiid
  * USB_EXYNOS_SWITCH can check Both Host and Device status.
  */
+
+#ifdef CONFIG_LINK_DEVICE_USB
+extern int during_hub_resume;
+#endif
+
 static int check_usb_op(void)
 {
 #if defined(CONFIG_USB_S3C_OTGD) && !defined(CONFIG_USB_EXYNOS_SWITCH)
 	void __iomem *base_addr;
 	unsigned int val;
+
+#ifdef CONFIG_LINK_DEVICE_USB
+	if (during_hub_resume) {
+		pr_info("mif: Not entering LPA !\n");
+		return 1;
+	}
+#endif
 
 	base_addr = chk_usbotg_op.base;
 	val = __raw_readl(base_addr + S3C_UDC_OTG_GOTGCTL);
@@ -336,6 +356,11 @@ static int check_usb_op(void)
 	return 0;
 #endif
 }
+
+#ifdef CONFIG_MACH_U1_NA_SPR
+#include "../../../sound/soc/samsung/srp-types.h"
+#include "../../../sound/soc/samsung/idma.h"
+#endif
 
 #ifdef CONFIG_SND_SAMSUNG_RP
 extern int srp_get_op_level(void);	/* By srp driver */
@@ -363,6 +388,65 @@ static inline int check_gps_uart_op(void)
 	return gps_is_running;
 }
 
+#ifdef CONFIG_INTERNAL_MODEM_IF
+static int check_idpram_op(void)
+{
+#ifdef CONFIG_SEC_MODEM_U1_SPR
+	/*
+	If GPIO_CP_DUMP_INT is HIGH, dpram is in use.
+	If there is a cmd in cp's mbx, dpram is in use.
+	*/
+
+	/* block any further write's into dpram from ap*/
+	gpio_set_value(GPIO_PDA_ACTIVE, 0);
+
+	if (gpio_get_value(GPIO_CP_DUMP_INT) ||
+		!gpio_get_value(GPIO_DPRAM_INT_CP_N)) {
+		pr_info("LPA. dpram is in use\n");
+		gpio_set_value(GPIO_PDA_ACTIVE, 1);
+		return 1;
+	}
+
+	/* dpram is not in use, so keep GPIO_PDA_ACTIVE low and return */
+	return 0;
+#else
+	/* This pin is high when CP might be accessing dpram */
+	int cp_int = gpio_get_value(GPIO_CP_AP_DPRAM_INT);
+	if (cp_int != 0)
+		pr_info("%s cp_int is high.\n", __func__);
+	return cp_int;
+#endif
+}
+#endif
+
+#if defined(CONFIG_ISDBT)
+static int check_isdbt_op(void)
+{
+	/* This pin is high when isdbt is working */
+	int isdbt_is_running = gpio_get_value(GPIO_ISDBT_EN);
+
+	if (isdbt_is_running != 0)
+		printk(KERN_INFO "isdbt_is_running is high\n");
+	return isdbt_is_running;
+}
+#endif
+
+static atomic_t sromc_use_count;
+
+void set_sromc_access(bool access)
+{
+	if (access)
+		atomic_set(&sromc_use_count, 1);
+	else
+		atomic_set(&sromc_use_count, 0);
+}
+EXPORT_SYMBOL(set_sromc_access);
+
+static inline int check_sromc_access(void)
+{
+	return atomic_read(&sromc_use_count);
+}
+
 static int exynos4_check_operation(void)
 {
 	if (check_power_domain())
@@ -377,8 +461,24 @@ static int exynos4_check_operation(void)
 	if (srp_get_op_level())
 		return 1;
 #endif
+
+#ifdef CONFIG_MACH_U1_NA_SPR
+#ifdef CONFIG_SND_SAMSUNG_RP
+	if (!srp_get_status(IS_RUNNING))
+		return 1;
+#elif defined(CONFIG_SND_SAMSUNG_ALP)
+	if (!idma_is_running())
+		return 1;
+#endif
+#endif
+
 	if (check_usb_op())
 		return 1;
+
+#if defined(CONFIG_ISDBT)
+	if (check_isdbt_op())
+		return 1;
+#endif
 
 #if defined(CONFIG_BT)
 	if (check_bt_op())
@@ -390,6 +490,19 @@ static int exynos4_check_operation(void)
 
 	if (exynos4_check_usb_op())
 		return 1;
+
+	if (check_sromc_access())
+		return 1;
+
+#ifdef CONFIG_EXYNOS_C2C
+	if (c2c_connected())
+		return 1;
+#endif
+
+#ifdef CONFIG_INTERNAL_MODEM_IF
+	if (check_idpram_op())
+		return 1;
+#endif
 
 	return 0;
 }
@@ -586,6 +699,10 @@ static int exynos4_enter_core0_lpa(struct cpuidle_device *dev,
 #endif
 	local_irq_disable();
 
+#ifdef CONFIG_INTERNAL_MODEM_IF
+	gpio_set_value(GPIO_PDA_ACTIVE, 0);
+#endif
+
 	if (log_en)
 		pr_info("+++lpa\n");
 
@@ -660,7 +777,7 @@ early_wakeup:
 			       ARRAY_SIZE(exynos4_lpa_save));
 
 #ifdef CONFIG_EXYNOS4_CPUFREQ
-	if ((exynos_result_of_asv > 1) && !soc_is_exynos4210()) {
+	if (!soc_is_exynos4210()) {
 		exynos4x12_set_abb_member(ABB_ARM, abb_val);
 		exynos4x12_set_abb_member(ABB_INT, abb_val_int);
 	}
@@ -678,6 +795,10 @@ early_wakeup:
 
 	if (log_en)
 		pr_info("---lpa\n");
+
+#ifdef CONFIG_INTERNAL_MODEM_IF
+	gpio_set_value(GPIO_PDA_ACTIVE, 1);
+#endif
 
 	local_irq_enable();
 	idle_time = (after.tv_sec - before.tv_sec) * USEC_PER_SEC +
@@ -710,7 +831,7 @@ static struct cpuidle_state exynos4_cpuidle_set[] = {
 	[1] = {
 		.enter			= exynos4_enter_lowpower,
 		.exit_latency		= 300,
-		.target_residency	= 10000,
+		.target_residency	= 5000,
 		.flags			= CPUIDLE_FLAG_TIME_VALID,
 		.name			= "LOW_POWER",
 		.desc			= "ARM power down",
@@ -807,12 +928,18 @@ static int exynos4_check_entermode(void)
 	return ret;
 }
 
+#ifdef CONFIG_CORESIGHT_ETM
+extern int etm_enable(int pm_enable);
+extern int etm_disable(int pm_enable);
+#endif
+
 static int exynos4_enter_lowpower(struct cpuidle_device *dev,
 				  struct cpuidle_state *state)
 {
 	struct cpuidle_state *new_state = state;
 	unsigned int enter_mode;
 	unsigned int tmp;
+	int ret;
 
 	/* This mode only can be entered when only Core0 is online */
 	if (num_online_cpus() != 1) {
@@ -832,10 +959,20 @@ static int exynos4_enter_lowpower(struct cpuidle_device *dev,
 	enter_mode = exynos4_check_entermode();
 	if (!enter_mode)
 		return exynos4_enter_idle(dev, new_state);
-	else if (enter_mode == S5P_CHECK_DIDLE)
-		return exynos4_enter_core0_aftr(dev, new_state);
-	else
-		return exynos4_enter_core0_lpa(dev, new_state);
+	else {
+#ifdef CONFIG_CORESIGHT_ETM
+		etm_disable(0);
+#endif
+		if (enter_mode == S5P_CHECK_DIDLE)
+			ret = exynos4_enter_core0_aftr(dev, new_state);
+		else
+			ret = exynos4_enter_core0_lpa(dev, new_state);
+#ifdef CONFIG_CORESIGHT_ETM
+		etm_enable(0);
+#endif
+	}
+
+	return ret;
 }
 
 static int exynos4_cpuidle_notifier_event(struct notifier_block *this,
@@ -844,9 +981,15 @@ static int exynos4_cpuidle_notifier_event(struct notifier_block *this,
 {
 	switch (event) {
 	case PM_SUSPEND_PREPARE:
+	case PM_HIBERNATION_PREPARE:
+	case PM_RESTORE_PREPARE:
 		disable_hlt();
 		pr_debug("PM_SUSPEND_PREPARE for CPUIDLE\n");
 		return NOTIFY_OK;
+	case PM_POST_HIBERNATION:
+#ifdef CONFIG_FAST_RESUME
+		exynos4_init_cpuidle_post_hib();
+#endif
 	case PM_POST_RESTORE:
 	case PM_POST_SUSPEND:
 		enable_hlt();
@@ -920,6 +1063,35 @@ static void __init exynos4_core_down_clk(void)
 #define exynos4_core_down_clk()	do { } while (0)
 #endif
 
+#ifdef CONFIG_FAST_RESUME
+static void exynos4_init_cpuidle_post_hib(void)
+{
+	if (soc_is_exynos4210())
+		use_clock_down = SW_CLK_DWN;
+	else
+		use_clock_down = HW_CLK_DWN;
+
+	/* Clock down feature can use only EXYNOS4212 */
+	if (use_clock_down == HW_CLK_DWN)
+		exynos4_core_down_clk();
+
+	sys_pwr_conf_addr = (unsigned long)S5P_CENTRAL_SEQ_CONFIGURATION;
+
+	/* Save register value for SCU */
+	scu_save[0] = __raw_readl(S5P_VA_SCU + 0x30);
+	scu_save[1] = __raw_readl(S5P_VA_SCU + 0x0);
+
+	/* Save register value for L2X0 */
+	l2x0_save[0] = __raw_readl(S5P_VA_L2CC + 0x108);
+	l2x0_save[1] = __raw_readl(S5P_VA_L2CC + 0x10C);
+	l2x0_save[2] = __raw_readl(S5P_VA_L2CC + 0xF60);
+
+	flush_cache_all();
+	outer_clean_range(virt_to_phys(l2x0_save), ARRAY_SIZE(l2x0_save));
+	outer_clean_range(virt_to_phys(scu_save), ARRAY_SIZE(scu_save));
+}
+#endif
+
 static int __init exynos4_init_cpuidle(void)
 {
 	int i, max_cpuidle_state, cpu_id, ret;
@@ -938,7 +1110,7 @@ static int __init exynos4_init_cpuidle(void)
 
 	ret = cpuidle_register_driver(&exynos4_idle_driver);
 
-	if(ret < 0){
+	if (ret < 0) {
 		printk(KERN_ERR "exynos4 idle register driver failed\n");
 		return ret;
 	}

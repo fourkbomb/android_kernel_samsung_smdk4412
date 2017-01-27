@@ -214,7 +214,8 @@ static void __mmc_start_req(struct mmc_host *host, struct mmc_request *mrq)
 	}
 
 #if (defined(CONFIG_MIDAS_COMMON) && !defined(CONFIG_EXYNOS4_DEV_DWMCI)) || \
-	defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_SLP_NAPLES)
+	defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_SLP_NAPLES) || \
+	defined(CONFIG_MACH_TRATS)
 #ifndef CONFIG_MMC_POLLING_WAIT_CMD23
 
 	if(mrq->sbc) {
@@ -1839,6 +1840,16 @@ int mmc_erase(struct mmc_card *card, unsigned int from, unsigned int nr,
 	if (to <= from)
 		return -EINVAL;
 
+	/* to set the address in 16k (32sectors) */
+	if(arg == MMC_TRIM_ARG) {
+		if ((from % 32) != 0)
+			from = ((from >> 5) + 1) << 5;
+
+		to = (to >> 5) << 5;
+		if (from >= to)
+			return 0;
+	}
+
 	/* 'from' and 'to' are inclusive */
 	to -= 1;
 
@@ -2695,7 +2706,11 @@ static void __exit mmc_exit(void)
 	destroy_workqueue(workqueue);
 }
 
+#ifdef CONFIG_FAST_RESUME
+beforeresume_initcall(mmc_init);
+#else
 subsys_initcall(mmc_init);
+#endif
 module_exit(mmc_exit);
 
 MODULE_LICENSE("GPL");

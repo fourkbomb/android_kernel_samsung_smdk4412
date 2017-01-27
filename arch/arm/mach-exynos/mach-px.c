@@ -177,7 +177,7 @@
 #include <linux/mdnie.h>
 #endif
 
-#include <../../../drivers/video/samsung/s3cfb.h>
+#include <plat/fb-s5p.h>
 #include "px.h"
 
 #include <mach/sec_debug.h>
@@ -221,6 +221,13 @@
 #include <linux/wacom_i2c.h>
 static struct wacom_g5_callbacks *wacom_callbacks;
 #endif /* CONFIG_EPEN_WACOM_G5SP */
+
+#ifdef CONFIG_USBHUB_USB3503_OTG_CONN
+#include <linux/usb.h>
+#include <linux/usb/hcd.h>
+#include <linux/platform_data/usb3503_otg_conn.h>
+#endif
+
 
 static struct charging_status_callbacks {
 	void (*tsp_set_charging_cable) (int type);
@@ -363,9 +370,13 @@ static struct tasklet_struct hostwake_task;
 
 static void wlan_hostwake_task(unsigned long data)
 {
+#if defined(CONFIG_MACH_P8LTE)
+	printk(KERN_INFO "WLAN: wake lock timeout 1 sec...\n");
+	wake_lock_timeout(&wsi->wake_lock, HZ);
+#else
 	printk(KERN_INFO "WLAN: wake lock timeout 0.5 sec...\n");
-
 	wake_lock_timeout(&wsi->wake_lock, HZ / 2);
+#endif
 }
 
 static irqreturn_t wlan_hostwake_isr(int irq, void *dev_id)
@@ -1509,6 +1520,7 @@ static struct s5k5bafx_platform_data s5k5bafx_plat = {
 	.freq = 24000000,
 	.is_mipi = 1,
 	.streamoff_delay = S5K5BAFX_STREAMOFF_DELAY,
+	.init_streamoff = false,
 	.dbg_level = CAMDBG_LEVEL_DEFAULT,
 };
 #define FRONT_CAM_PLAT		(s5k5bafx_plat)
@@ -2186,9 +2198,7 @@ static struct s3c_sdhci_platdata exynos4_hsmmc3_pdata __initdata = {
 	.cd_type = S3C_SDHCI_CD_EXTERNAL,
 	.clk_type = S3C_SDHCI_CLK_DIV_EXTERNAL,
 	.host_caps = MMC_CAP_4_BIT_DATA,
-#if defined(CONFIG_MACH_P8LTE)
 	.pm_flags = S3C_SDHCI_PM_IGNORE_SUSPEND_RESUME,
-#endif
 #ifdef CONFIG_MACH_PX
 	.ext_cd_init = register_wlan_status_notify,
 	.ext_pdev = register_wlan_pdev
@@ -3038,16 +3048,16 @@ static struct mpu3050_platform_data mpu3050_pdata = {
 	 * So X & Y are swapped and Y is negated.
 	 */
 #if defined(CONFIG_MACH_P8)
-	.orientation = {0, 1, 0,
-			1, 0, 0,
+	.orientation = {1, 0, 0,
+			0, -1, 0,
 			0, 0, -1},
 #elif defined(CONFIG_MACH_P8LTE)
 	.orientation = {0, -1, 0,
 			1, 0, 0,
 			0, 0, 1},
 #elif defined(CONFIG_MACH_P2)
-	.orientation = {0, 1, 0,
-			1, 0, 0,
+	.orientation = {1, 0, 0,
+			0, -1, 0,
 			0, 0, -1},
 #elif defined(CONFIG_MACH_P4)
 	.orientation = {1 , 0, 0,
@@ -3070,16 +3080,16 @@ static struct mpu3050_platform_data mpu3050_pdata = {
 		 * So X & Y are both negated.
 		 */
 #if defined(CONFIG_MACH_P8)
-		.orientation = {0, 1, 0,
-				1, 0, 0,
+		.orientation = {1, 0, 0,
+				0, -1, 0,
 				0, 0, -1},
 #elif defined(CONFIG_MACH_P8LTE)
 		.orientation = {0, 1, 0,
 				-1, 0, 0,
 				0, 0, 1},
 #elif defined(CONFIG_MACH_P2)
-		.orientation = {0, 1, 0,
-				1, 0, 0,
+		.orientation = {1, 0, 0,
+				0, -1, 0,
 				0, 0, -1},
 #elif defined(CONFIG_MACH_P4)
 		.orientation = {0, -1, 0,
@@ -3102,8 +3112,8 @@ static struct mpu3050_platform_data mpu3050_pdata = {
 		 * 90 degrees clockwise from natural orientation.
 		 * So X & Y are swapped and Y & Z are negated.
 		 */
-		.orientation = {0, -1, 0,
-				1, 0, 0,
+		.orientation = {1, 0, 0,
+				0, 1, 0,
 				0, 0, 1},
 	},
 
@@ -4316,7 +4326,7 @@ static u8 t8_config_e[] = { GEN_ACQUISITIONCONFIG_T8,
 };
 
 static u8 t9_config_e[] = { TOUCH_MULTITOUCHSCREEN_T9,
-	139, 0, 0, 24, 32, 0, 176, MXT768E_THRESHOLD_BATT, 2, 1,
+	139, 0, 0, 24, 32, 0, 176, MXT768E_THRESHOLD_BATT, 2, 2,
 	10, 10, 1, 13, MXT768E_MAX_MT_FINGERS, 20, 40, 20, 31, 3,
 	255, 4, MXT768E_XLOCLIP_BATT, MXT768E_XHICLIP_BATT,
 	MXT768E_YLOCLIP_BATT, MXT768E_YHICLIP_BATT,
@@ -4433,9 +4443,9 @@ static struct mxt_platform_data mxt_data = {
 	.gpio_read_done = GPIO_TSP_INT_18V,
 	.config = mxt768e_config,
 	.min_x = 0,
-	.max_x = 1279,
+	.max_x = 799,
 	.min_y = 0,
-	.max_y = 799,
+	.max_y = 1279,
 	.min_z = 0,
 	.max_z = 255,
 	.min_w = 0,
@@ -5462,8 +5472,9 @@ static struct s3c2410_ts_mach_info s3c_ts_platform __initdata = {
 	},
 };
 #endif
+
 #if defined(CONFIG_FB_S5P_S6F1202A)
-static struct s3cfb_lcd s6f1202a = {
+static struct s3cfb_lcd panel_data = {
 	.width = 1024,
 	.height = 600,
 	.p_width = 161,
@@ -5490,6 +5501,15 @@ static struct s3cfb_lcd s6f1202a = {
 static int lcd_power_on(struct lcd_device *ld, int enable)
 {
 	if (enable) {
+		/* s5c1372_ldi_enable */
+		gpio_set_value(GPIO_LCD_EN, GPIO_LEVEL_HIGH);
+		gpio_set_value(GPIO_LCD_LDO_EN, GPIO_LEVEL_HIGH);
+		msleep(40);
+
+		/* Enable backlight PWM GPIO for P2 device. */
+		gpio_set_value(GPIO_LCD_BACKLIGHT_PWM, 0);
+		s3c_gpio_cfgpin(GPIO_LCD_BACKLIGHT_PWM, S3C_GPIO_SFN(3));
+
 		/* LVDS_N_SHDN to high*/
 		gpio_set_value(GPIO_LVDS_NSHDN, GPIO_LEVEL_HIGH);
 		if (lcdtype == 2) /* BOE_NT51008 */
@@ -5504,16 +5524,33 @@ static int lcd_power_on(struct lcd_device *ld, int enable)
 		/* LVDS_nSHDN low*/
 		gpio_set_value(GPIO_LVDS_NSHDN, GPIO_LEVEL_LOW);
 		msleep(20);
+
+		/* s5c1372_ldi_disable */
+		/* Disable backlight PWM GPIO for P2 device. */
+		gpio_set_value(GPIO_LCD_BACKLIGHT_PWM, GPIO_LEVEL_LOW);
+		s3c_gpio_cfgpin(GPIO_LCD_BACKLIGHT_PWM, S3C_GPIO_OUTPUT);
+
+		/* Disable LVDS Panel Power, 1.2, 1.8, display 3.3V */
+		gpio_set_value(GPIO_LCD_LDO_EN, GPIO_LEVEL_LOW);
+		gpio_set_value(GPIO_LCD_EN, GPIO_LEVEL_LOW);
+		msleep(300);
 	}
 	return 0;
 }
-static struct lcd_platform_data p2_lcd_platform_data = {
+
+static char * const panel_name[] = {
+	"HYDIS_NT51008",
+	"SMD_S6F1202A02",
+	"BOE_NT51008",
+};
+
+static struct lcd_platform_data panel_platform_data = {
 	.power_on		= lcd_power_on,
 };
 #endif
 
 #if defined(CONFIG_FB_S5P_S6C1372)
-static struct s3cfb_lcd s6c1372 = {
+static struct s3cfb_lcd panel_data = {
 	.width = 1280,
 	.height = 800,
 	.p_width = 217,
@@ -5539,6 +5576,7 @@ static struct s3cfb_lcd s6c1372 = {
 		.inv_vden = 0,
 	},
 };
+
 static int lcd_power_on(struct lcd_device *ld, int enable)
 {
 	if (enable) {
@@ -5568,21 +5606,23 @@ static int lcd_power_on(struct lcd_device *ld, int enable)
 	return 0;
 }
 
-static struct lcd_platform_data p4_lcd_platform_data = {
+
+static char * const panel_name[] = {
+	"SEC_LTL101AL01-002/003",
+};
+
+static struct lcd_platform_data panel_platform_data = {
 	.power_on		= lcd_power_on,
 };
 #endif
 
 #if defined(CONFIG_FB_S5P_S6C1372) || defined(CONFIG_FB_S5P_S6F1202A)
-static struct platform_device lcd_s6c1372 = {
-	.name   = "s6c1372",
+static struct platform_device lvds_lcd = {
+	.name   = "lvds_lcd",
 	.id	= -1,
-#if defined(CONFIG_FB_S5P_S6F1202A)
-	.dev.platform_data = &p2_lcd_platform_data,
-#else
-	.dev.platform_data = &p4_lcd_platform_data,
-#endif
+	.dev.platform_data = &panel_platform_data,
 };
+
 static struct s3c_platform_fb fb_platform_data __initdata = {
 	.hw_ver		= 0x70,
 	.clk_name	= "fimd",
@@ -5593,12 +5633,7 @@ static struct s3c_platform_fb fb_platform_data __initdata = {
 	.default_win	= 0,
 #endif
 	.swap		= FB_SWAP_HWORD | FB_SWAP_WORD,
-#if defined(CONFIG_FB_S5P_S6F1202A)
-	.lcd		= &s6f1202a
-#endif
-#if defined(CONFIG_FB_S5P_S6C1372)
-	.lcd		= &s6c1372
-#endif
+	.lcd		= &panel_data
 };
 #endif
 #if defined(CONFIG_BACKLIGHT_PWM)
@@ -5627,15 +5662,28 @@ static void __init smdk_backlight_register(void)
 				ret);
 }
 #endif
+
+#if defined(CONFIG_FB_S5P_S6C1372) || defined(CONFIG_FB_S5P_S6F1202A)
+static void __init lvds_lcd_register(void)
+{
+	int ret;
+
+	panel_platform_data.pdata = (void *)panel_name[lcdtype];
+
+	ret = platform_device_register(&lvds_lcd);
+	if (ret)
+		pr_err("%s failed: %d\n", __func__, ret);
+}
+#endif
+
 #ifdef CONFIG_FB_S5P_MDNIE
 static struct platform_mdnie_data mdnie_data = {
 	.display_type	= -1,
-#if defined(CONFIG_FB_S5P_S6F1202A)
-	.lcd_pd		= &p2_lcd_platform_data,
-#elif defined(CONFIG_FB_S5P_S6C1372)
-	.lcd_pd		= &p4_lcd_platform_data,
+#if defined(CONFIG_FB_S5P_S6C1372) || defined(CONFIG_FB_S5P_S6F1202A)
+	.lcd_pd		= &panel_platform_data,
 #endif
 };
+
 static struct platform_device mdnie_device = {
 	.name = "mdnie",
 	.id = -1,
@@ -5644,6 +5692,7 @@ static struct platform_device mdnie_device = {
 		.platform_data = &mdnie_data,
 	},
 };
+
 static void __init mdnie_device_register(void)
 {
 	int ret;
@@ -5652,22 +5701,14 @@ static void __init mdnie_device_register(void)
 
 	ret = platform_device_register(&mdnie_device);
 	if (ret)
-		printk(KERN_ERR "failed to register mdnie device: %d\n",
-				ret);
+		pr_err("failed to register mdnie device: %d\n", ret);
 }
 #endif
 
 #if defined(CONFIG_FB_S5P_S6C1372) || defined(CONFIG_FB_S5P_S6F1202A)
-static int lcd_cfg_gpio(void)
-{
-	return 0;
-}
-
-int s6c1372_panel_gpio_init(void)
+static int s6c1372_panel_gpio_init(void)
 {
 	int ret;
-
-	lcd_cfg_gpio();
 
 	/* GPIO Initialize  for S6C1372 LVDS panel */
 	ret = gpio_request(GPIO_LCD_EN, "GPIO_LCD_EN");
@@ -5708,7 +5749,7 @@ int s6c1372_panel_gpio_init(void)
 #ifdef CONFIG_FB_S5P_MIPI_DSIM
 #ifdef CONFIG_FB_S5P_S6E8AB0
 /* for Geminus based on MIPI-DSI interface */
-static struct s3cfb_lcd s6e8ab0 = {
+static struct s3cfb_lcd panel_data = {
 	.name = "s6e8ab0",
 	.width = 1280,
 	.height = 800,
@@ -5763,9 +5804,9 @@ static int reset_lcd(void)
 
 	/* Power Reset */
 	gpio_set_value(GPIO_LCD_RST, GPIO_LEVEL_HIGH);
-	msleep(5);
+	usleep_range(5000, 5000);
 	gpio_set_value(GPIO_LCD_RST, GPIO_LEVEL_LOW);
-	msleep(5);
+	usleep_range(5000, 5000);
 	gpio_set_value(GPIO_LCD_RST, GPIO_LEVEL_HIGH);
 
 
@@ -5848,9 +5889,7 @@ static struct s3c_platform_fb fb_platform_data __initdata = {
 	.default_win = 0,
 #endif
 	.swap = FB_SWAP_HWORD | FB_SWAP_WORD,
-#ifdef CONFIG_FB_S5P_S6E8AB0
-	.lcd = &s6e8ab0
-#endif
+	.lcd = &panel_data
 };
 
 static void __init mipi_fb_init(void)
@@ -5877,9 +5916,9 @@ static void __init mipi_fb_init(void)
 
 	dsim_lcd_info = dsim_pd->dsim_lcd_info;
 
-#ifdef CONFIG_FB_S5P_S6E8AB0
-	dsim_lcd_info->lcd_panel_info = (void *)&s6e8ab0;
+	dsim_lcd_info->lcd_panel_info = (void *)&panel_data;
 
+#ifdef CONFIG_FB_S5P_S6E8AB0
 	/* 500Mbps */
 	dsim_pd->dsim_info->p = 3;
 	dsim_pd->dsim_info->m = 125;
@@ -6015,9 +6054,9 @@ static void __init smdkc210_usbgadget_init(void)
 		pdata->phy_tune |= 0x1 << 11;
 #elif defined(CONFIG_TARGET_LOCALE_P2EUR_TEMP)
 		/* P2 EUR OPEN */
-		/*squelch threshold tune [13:11] (000 : +15%) */
+		/*squelch threshold tune [13:11] (100 : -5%) */
 		pdata->phy_tune_mask |= 0x7 << 11;
-		pdata->phy_tune |= 0x0 << 11;
+		pdata->phy_tune |= 0x4 << 11;
 #endif
 		printk(KERN_DEBUG "usb: %s tune_mask=0x%x, tune=0x%x\n",
 			__func__, pdata->phy_tune_mask, pdata->phy_tune);
@@ -6258,6 +6297,82 @@ static struct platform_device sec_battery_device = {
 };
 #endif /* CONFIG_BATTERY_SEC_PX */
 
+#ifdef CONFIG_USBHUB_USB3503_OTG_CONN
+int usb3503_hw_config(void)
+{
+	s3c_gpio_cfgpin(GPIO_USB_HUB_RST, S3C_GPIO_OUTPUT);
+	s3c_gpio_setpull(GPIO_USB_HUB_RST, S3C_GPIO_PULL_NONE);
+	gpio_set_value(GPIO_USB_HUB_RST, S3C_GPIO_SETPIN_ZERO);
+	s5p_gpio_set_drvstr(GPIO_USB_HUB_RST,
+		S5P_GPIO_DRVSTR_LV1); /* need to check drvstr 1 or 2 */
+
+	return 0;
+}
+
+int usb3503_reset_n(int val)
+{
+	gpio_set_value(GPIO_USB_HUB_RST, !!val);
+
+	pr_info("Board : %s = %d\n", __func__,
+		gpio_get_value(GPIO_USB_HUB_RST));
+
+	return 0;
+}
+
+static int host_port_enable(int port, int enable)
+{
+	int err;
+
+	pr_info("port(%d) control(%d)\n", port, enable);
+
+	if (enable) {
+		err = s5p_ehci_port_control(&s5p_device_ehci, port, 1);
+		if (err < 0) {
+			pr_err("ERR: port(%d) enable fail\n", port);
+			goto exit;
+		}
+	} else {
+		err = s5p_ehci_port_control(&s5p_device_ehci, port, 0);
+		if (err < 0) {
+			pr_err("ERR: port(%d) enable fail\n", port);
+			goto exit;
+		}
+	}
+
+exit:
+	return err;
+}
+
+/* I2C17_EMUL */
+static struct i2c_gpio_platform_data i2c17_platdata = {
+	.sda_pin = GPIO_USB_HUB_I2C_SDA,
+	.scl_pin = GPIO_USB_HUB_I2C_SCL,
+};
+
+struct platform_device s3c_device_i2c17 = {
+	.name = "i2c-gpio",
+	.id = 17,
+	.dev.platform_data = &i2c17_platdata,
+};
+
+struct usb3503_platform_data usb3503_pdata = {
+	.init_needed    =  1,
+	.es_ver         = 1,
+	.inital_mode    = USB_3503_MODE_STANDBY,
+	.hw_config      = usb3503_hw_config,
+	.reset_n        = usb3503_reset_n,
+	.port_enable = host_port_enable,
+};
+
+static struct i2c_board_info i2c_devs17_emul[] __initdata = {
+	{
+		I2C_BOARD_INFO(USB3503_I2C_NAME, 0x08),
+		.platform_data  = &usb3503_pdata,
+	},
+};
+#endif
+
+
 #ifdef CONFIG_30PIN_CONN
 static void smdk_accessory_gpio_init(void)
 {
@@ -6309,7 +6424,7 @@ void smdk_accessory_power(u8 token, bool active)
 		gpio_acc_5v = GPIO_ACCESSORY_OUT_5V;
 	/*for checking p8 3g and wifi*/
 #elif defined(CONFIG_MACH_P8) || defined(CONFIG_MACH_P8LTE)
-if (system_rev >= 4)
+	if (system_rev >= 4)
 		gpio_acc_5v = GPIO_ACCESSORY_OUT_5V;
 #endif
 
@@ -6327,6 +6442,7 @@ if (system_rev >= 4)
 		acc_en_token |= (1 << token);
 		enable = true;
 		gpio_direction_output(gpio_acc_en, 1);
+		usleep_range(2000, 2000);
 
 		if (0 != gpio_acc_5v) {
 			gpio_request(gpio_acc_5v, "gpio_acc_5v");
@@ -6387,6 +6503,16 @@ static int check_sec_keyboard_dock(bool attached)
 	return 0;
 }
 
+/* call 30pin func. from sec_keyboard */
+static struct sec_30pin_callbacks *s30pin_callbacks;
+static int noti_sec_univ_kbd_dock(unsigned int code)
+{
+	if (s30pin_callbacks && s30pin_callbacks->noti_univ_kdb_dock)
+		return s30pin_callbacks->
+			noti_univ_kdb_dock(s30pin_callbacks, code);
+	return 0;
+}
+
 static void check_uart_path(bool en)
 {
 	int gpio_uart_sel;
@@ -6414,6 +6540,11 @@ static void check_uart_path(bool en)
 		gpio_get_value(gpio_uart_sel));
 }
 
+static void sec_30pin_register_cb(struct sec_30pin_callbacks *cb)
+{
+	 s30pin_callbacks = cb;
+}
+
 static void sec_keyboard_register_cb(struct sec_keyboard_callbacks *cb)
 {
 	keyboard_callbacks = cb;
@@ -6424,6 +6555,7 @@ static struct sec_keyboard_platform_data kbd_pdata = {
 	.acc_power = smdk_accessory_power,
 	.check_uart_path = check_uart_path,
 	.register_cb = sec_keyboard_register_cb,
+	.noti_univ_kbd_dock = noti_sec_univ_kbd_dock,
 	.wakeup_key = NULL,
 };
 
@@ -6456,8 +6588,17 @@ struct platform_device host_notifier_device = {
 	.dev.platform_data = &host_notifier_pdata,
 };
 
+#ifdef CONFIG_USBHUB_USB3503_OTG_CONN
+#define RETRY_CNT_LIMIT 100
+#endif
+
 static void px_usb_otg_en(int active)
 {
+#ifdef CONFIG_USBHUB_USB3503_OTG_CONN
+	struct usb_hcd *ehci_hcd = platform_get_drvdata(&s5p_device_ehci);
+	int retry_cnt = 1;
+#endif
+
 	pr_info("otg %s : %d\n", __func__, active);
 
 	usb_switch_lock();
@@ -6484,6 +6625,16 @@ static void px_usb_otg_en(int active)
 #endif
 #ifdef CONFIG_USB_EHCI_S5P
 		pm_runtime_put_sync(&s5p_device_ehci.dev);
+#ifdef CONFIG_USBHUB_USB3503_OTG_CONN
+		/* waiting for ehci root hub suspend is done */
+		while (ehci_hcd->state != HC_STATE_SUSPENDED) {
+			msleep(50);
+			if (retry_cnt++ > RETRY_CNT_LIMIT) {
+				printk(KERN_ERR "ehci suspend not completed\n");
+				break;
+			}
+		}
+#endif
 #endif
 
 		usb_switch_clr_path(USB_PATH_HOST);
@@ -6494,6 +6645,23 @@ static void px_usb_otg_en(int active)
 	}
 
 	usb_switch_unlock();
+
+#ifdef CONFIG_USBHUB_USB3503_OTG_CONN
+	if (!active) {
+		host_port_enable(2, 0);
+		usb3503_set_mode(USB_3503_MODE_STANDBY);
+	}
+
+	gpio_request(GPIO_USB_OTG_EN, "GPIO_USB_OTG_EN");
+	gpio_direction_output(GPIO_USB_OTG_EN, active);
+	gpio_free(GPIO_USB_OTG_EN);
+
+	if (active) {
+		usb3503_set_mode(USB_3503_MODE_HUB);
+		host_port_enable(2, 1);
+	}
+#endif
+
 }
 #endif
 
@@ -6513,6 +6681,7 @@ struct acc_con_platform_data acc_con_pdata = {
 #ifdef CONFIG_SEC_KEYBOARD_DOCK
 	.check_keyboard = check_sec_keyboard_dock,
 #endif
+	.register_cb = sec_30pin_register_cb,
 	.accessory_irq_gpio = GPIO_ACCESSORY_INT,
 	.dock_irq_gpio = GPIO_DOCK_INT,
 #ifdef CONFIG_MHL_SII9234
@@ -6540,6 +6709,77 @@ static struct platform_device watchdog_reset_device = {
 	.id = -1,
 };
 #endif
+
+#ifdef CONFIG_CORESIGHT_ETM
+
+#define CORESIGHT_PHYS_BASE             0x10880000
+#define CORESIGHT_ETB_PHYS_BASE         (CORESIGHT_PHYS_BASE + 0x1000)
+#define CORESIGHT_TPIU_PHYS_BASE        (CORESIGHT_PHYS_BASE + 0x3000)
+#define CORESIGHT_FUNNEL_PHYS_BASE      (CORESIGHT_PHYS_BASE + 0x4000)
+#define CORESIGHT_ETM_PHYS_BASE         (CORESIGHT_PHYS_BASE + 0x1C000)
+
+static struct resource coresight_etb_resources[] = {
+	{
+		.start = CORESIGHT_ETB_PHYS_BASE,
+		.end   = CORESIGHT_ETB_PHYS_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device coresight_etb_device = {
+	.name          = "coresight_etb",
+	.id            = -1,
+	.num_resources = ARRAY_SIZE(coresight_etb_resources),
+	.resource      = coresight_etb_resources,
+};
+
+static struct resource coresight_tpiu_resources[] = {
+	{
+		.start = CORESIGHT_TPIU_PHYS_BASE,
+		.end   = CORESIGHT_TPIU_PHYS_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device coresight_tpiu_device = {
+	.name          = "coresight_tpiu",
+	.id            = -1,
+	.num_resources = ARRAY_SIZE(coresight_tpiu_resources),
+	.resource      = coresight_tpiu_resources,
+};
+
+static struct resource coresight_funnel_resources[] = {
+	{
+		.start = CORESIGHT_FUNNEL_PHYS_BASE,
+		.end   = CORESIGHT_FUNNEL_PHYS_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device coresight_funnel_device = {
+	.name          = "coresight_funnel",
+	.id            = -1,
+	.num_resources = ARRAY_SIZE(coresight_funnel_resources),
+	.resource      = coresight_funnel_resources,
+};
+
+static struct resource coresight_etm_resources[] = {
+	{
+		.start = CORESIGHT_ETM_PHYS_BASE,
+		.end   = CORESIGHT_ETM_PHYS_BASE + (SZ_4K * 2) - 1,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device coresight_etm_device = {
+	.name          = "coresight_etm",
+	.id            = -1,
+	.num_resources = ARRAY_SIZE(coresight_etm_resources),
+	.resource      = coresight_etm_resources,
+};
+
+#endif
+
 static struct platform_device *smdkc210_devices[] __initdata = {
 #ifdef CONFIG_SEC_WATCHDOG_RESET
 	&watchdog_reset_device,
@@ -6617,10 +6857,13 @@ static struct platform_device *smdkc210_devices[] __initdata = {
 	&s3c_device_i2c12,
 #endif
 #if defined(CONFIG_MHL_SII9234)
-		&s3c_device_i2c15,
+	&s3c_device_i2c15,
 #endif
 #ifdef CONFIG_S3C_DEV_I2C16_EMUL
 	&s3c_device_i2c16,
+#endif
+#ifdef CONFIG_USBHUB_USB3503_OTG_CONN
+	&s3c_device_i2c17,	/* USB HUB */
 #endif
 #endif
 
@@ -6720,12 +6963,6 @@ static struct platform_device *smdkc210_devices[] __initdata = {
 #ifdef CONFIG_FB_S5P_LD9040
 	&ld9040_spi_gpio,
 #endif
-#if defined(CONFIG_FB_S5P_S6C1372) || defined(CONFIG_FB_S5P_S6F1202A)
-	&lcd_s6c1372,
-#endif
-#ifdef CONFIG_FB_S5P_MDNIE
-/* &mdnie_device,*/
-#endif
 #ifdef CONFIG_VIDEO_TVOUT
 	&s5p_device_tvout,
 	&s5p_device_cec,
@@ -6801,6 +7038,12 @@ static struct platform_device *smdkc210_devices[] __initdata = {
 #ifdef CONFIG_SEC_KEYBOARD_DOCK
 	&sec_keyboard,
 #endif
+#endif
+#ifdef CONFIG_CORESIGHT_ETM
+	&coresight_etb_device,
+	&coresight_tpiu_device,
+	&coresight_funnel_device,
+	&coresight_etm_device,
 #endif
 };
 
@@ -7043,9 +7286,9 @@ static void __init exynos4_reserve_mem(void)
 
 	static const char map[] __initconst =
 		"android_pmem.0=pmem;android_pmem.1=pmem_gpu1;"
-		"s3cfb.0=fimd;exynos4-fb.0=fimd;"
-		"s3c-fimc.0=fimc0;s3c-fimc.1=fimc1;s3c-fimc.2=fimc2;"
-		"exynos4210-fimc.0=fimc0;exynos4210-fimc.1=fimc1;exynos4210-fimc.2=fimc2;exynos4210-fimc3=fimc3;"
+		"s3cfb.0=fimd;exynos4-fb.0=fimd;samsung-pd.1=fimd;"
+		"s3c-fimc.0=fimc0;s3c-fimc.1=fimc1;s3c-fimc.2=fimc2;s3c-fimc.3=fimc3;"
+		"exynos4210-fimc.0=fimc0;exynos4210-fimc.1=fimc1;exynos4210-fimc.2=fimc2;exynos4210-fimc.3=fimc3;"
 #ifdef CONFIG_VIDEO_MFC5X
 		"s3c-mfc/A=mfc0,mfc-secure;"
 		"s3c-mfc/B=mfc1,mfc-normal;"
@@ -7397,6 +7640,10 @@ static void __init smdkc210_machine_init(void)
 #ifdef CONFIG_S3C_DEV_I2C16_EMUL
 	i2c_register_board_info(16, i2c_devs16, ARRAY_SIZE(i2c_devs16));
 #endif
+#ifdef CONFIG_USBHUB_USB3503_OTG_CONN
+	i2c_register_board_info(17, i2c_devs17_emul,
+		ARRAY_SIZE(i2c_devs17_emul));
+#endif
 #endif
 	smdkc210_smsc911x_init();
 
@@ -7536,6 +7783,9 @@ static void __init smdkc210_machine_init(void)
 
 #ifdef CONFIG_BACKLIGHT_PWM
 	smdk_backlight_register();
+#endif
+#if defined(CONFIG_FB_S5P_S6C1372) || defined(CONFIG_FB_S5P_S6F1202A)
+	lvds_lcd_register();
 #endif
 #if defined(CONFIG_FB_S5P_MDNIE) && defined(CONFIG_MACH_PX)
 	mdnie_device_register();

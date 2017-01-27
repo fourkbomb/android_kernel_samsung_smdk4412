@@ -31,6 +31,13 @@ struct sec_therm_info {
 	int curr_temp_adc;
 };
 
+#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
+	defined(CONFIG_MACH_C1_KOR_LGT)  || defined(CONFIG_MACH_BAFFIN)
+static void notify_change_of_temperature(struct sec_therm_info *info);
+int siopLevellimit;
+EXPORT_SYMBOL(siopLevellimit);
+#endif
+
 static ssize_t sec_therm_show_temperature(struct device *dev,
 				   struct device_attribute *attr,
 				   char *buf)
@@ -49,12 +56,44 @@ static ssize_t sec_therm_show_temp_adc(struct device *dev,
 	return sprintf(buf, "%d\n", info->curr_temp_adc);
 }
 
+#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
+	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_BAFFIN)
+static ssize_t sec_therm_show_sioplevel(struct device *dev,
+				   struct device_attribute *attr,
+				   char *buf)
+{
+	return sprintf(buf, "%d\n", siopLevellimit);
+}
+
+static ssize_t sec_therm_store_sioplevel(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t n)
+{
+	unsigned int val;
+	struct sec_therm_info *info = dev_get_drvdata(dev);
+
+	if (sscanf(buf, "%u", &val) == 1)
+		siopLevellimit = val;
+
+	notify_change_of_temperature(info);
+
+	return n;
+}
+
+static DEVICE_ATTR(sioplevel, S_IWUSR | S_IRUGO, sec_therm_show_sioplevel, \
+				 sec_therm_store_sioplevel);
+#endif
+
 static DEVICE_ATTR(temperature, S_IRUGO, sec_therm_show_temperature, NULL);
 static DEVICE_ATTR(temp_adc, S_IRUGO, sec_therm_show_temp_adc, NULL);
 
 static struct attribute *sec_therm_attributes[] = {
 	&dev_attr_temperature.attr,
 	&dev_attr_temp_adc.attr,
+#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
+	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_BAFFIN)
+	&dev_attr_sioplevel.attr,
+#endif
 	NULL
 };
 
@@ -130,7 +169,7 @@ static void notify_change_of_temperature(struct sec_therm_info *info)
 {
 	char temp_buf[20];
 	char siop_buf[20];
-	char *envp[2];
+	char *envp[3];
 	int env_offset = 0;
 	int siop_level = -1;
 
@@ -141,6 +180,17 @@ static void notify_change_of_temperature(struct sec_therm_info *info)
 	if (info->pdata->get_siop_level)
 		siop_level =
 		    info->pdata->get_siop_level(info->curr_temperature);
+
+	/* Disable siop temporary by checking h/w revision */
+#if defined(CONFIG_MACH_KONA_EUR_OPEN) ||\
+	defined(CONFIG_MACH_KONA_EUR_WIFI) || defined(CONFIG_MACH_KONA_KOR_WIFI)
+		if (system_rev < 5)
+			siop_level = 0;
+#elif defined(CONFIG_MACH_KONA_EUR_LTE)
+		if (system_rev < 3)
+			siop_level = 0;
+#endif
+
 	if (siop_level >= 0) {
 		snprintf(siop_buf, sizeof(siop_buf), "SIOP_LEVEL=%d",
 			 siop_level);

@@ -2060,6 +2060,7 @@ static void cfq_dispatch_insert(struct request_queue *q, struct request *rq)
 	cfq_remove_request(rq);
 	cfqq->dispatched++;
 	(RQ_CFQG(rq))->dispatched++;
+	rq->ioprio = IOPRIO_PRIO_VALUE(cfqq->ioprio_class, cfqq->ioprio);
 	elv_dispatch_sort(q, rq);
 
 	cfqd->rq_in_flight[cfq_cfqq_sync(cfqq)]++;
@@ -3169,7 +3170,7 @@ static int cfq_cic_link(struct cfq_data *cfqd, struct io_context *ioc,
 		}
 	}
 
-	if (ret)
+	if (ret && ret != -EEXIST)
 		printk(KERN_ERR "cfq: cic link failed!\n");
 
 	return ret;
@@ -3185,6 +3186,7 @@ cfq_get_io_context(struct cfq_data *cfqd, gfp_t gfp_mask)
 {
 	struct io_context *ioc = NULL;
 	struct cfq_io_context *cic;
+	int ret;
 
 	might_sleep_if(gfp_mask & __GFP_WAIT);
 
@@ -3192,6 +3194,7 @@ cfq_get_io_context(struct cfq_data *cfqd, gfp_t gfp_mask)
 	if (!ioc)
 		return NULL;
 
+retry:
 	cic = cfq_cic_lookup(cfqd, ioc);
 	if (cic)
 		goto out;
@@ -3200,7 +3203,12 @@ cfq_get_io_context(struct cfq_data *cfqd, gfp_t gfp_mask)
 	if (cic == NULL)
 		goto err;
 
-	if (cfq_cic_link(cfqd, ioc, cic, gfp_mask))
+	ret = cfq_cic_link(cfqd, ioc, cic, gfp_mask);
+	if (ret == -EEXIST) {
+		/* someone has linked cic to ioc already */
+		cfq_cic_free(cic);
+		goto retry;
+	} else if (ret)
 		goto err_free;
 
 out:
@@ -4015,6 +4023,11 @@ static void *cfq_init_queue(struct request_queue *q)
 
 	if (blkio_alloc_blkg_stats(&cfqg->blkg)) {
 		kfree(cfqg);
+
+		spin_lock(&cic_index_lock);
+		ida_remove(&cic_index_ida, cfqd->cic_index);
+		spin_unlock(&cic_index_lock);
+
 		kfree(cfqd);
 		return NULL;
 	}
@@ -4277,7 +4290,11 @@ static void __exit cfq_exit(void)
 	cfq_slab_kill();
 }
 
+#ifdef CONFIG_FAST_RESUME
+beforeresume_initcall(cfq_init);
+#else
 module_init(cfq_init);
+#endif
 module_exit(cfq_exit);
 
 MODULE_AUTHOR("Jens Axboe");

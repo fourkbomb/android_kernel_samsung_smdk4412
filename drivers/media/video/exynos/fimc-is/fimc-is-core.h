@@ -53,9 +53,13 @@
 #define FIMC_IS_SENSOR_NUM	2
 
 /* Time - out definitions */
-#define FIMC_IS_SHUTDOWN_TIMEOUT	(3*HZ)
+#define FIMC_IS_SHUTDOWN_TIMEOUT	(1*HZ)
+#define FIMC_IS_STREAMON_TIMEOUT	(2*HZ)
+#define FIMC_IS_STREAMOFF_TIMEOUT	(1*HZ)
+#define FIMC_IS_POWEROFF_TIMEOUT	(1*HZ)
 #define FIMC_IS_SHUTDOWN_TIMEOUT_SENSOR	(HZ)
 #define FIMC_IS_SHUTDOWN_TIMEOUT_AF	(3*HZ)
+
 /* Memory definitions */
 #define FIMC_IS_MEM_FW			"f"
 #define FIMC_IS_MEM_ISP_BUF		"i"
@@ -63,7 +67,7 @@
 #define FIMC_IS_A5_MEM_SIZE		0x00A00000
 #define FIMC_IS_REGION_SIZE		0x5000
 
-#define FIMC_IS_DEBUG_REGION_ADDR	0x00840000
+#define FIMC_IS_DEBUG_REGION_ADDR	0x0084B000
 #define FIMC_IS_SHARED_REGION_ADDR	0x008C0000
 #define FIMC_IS_FW_INFO_LENGTH		32
 #define FIMC_IS_FW_VERSION_LENGTH	7
@@ -77,18 +81,29 @@
 
 #define GED_FD_RANGE			1000
 
-#define BUS_LOCK_FREQ_L0	400200
-#define BUS_LOCK_FREQ_L1	267200
-#define BUS_LOCK_FREQ_L2	267160
-#define BUS_LOCK_FREQ_L3	160160
-#define BUS_LOCK_FREQ_L4	133133
-#define BUS_LOCK_FREQ_L5	100100
-
+#ifdef CONFIG_MACH_T0
+#define BUS_LOCK_FREQ_L0	440293
+#define BUS_LOCK_FREQ_L1	440220
+#define BUS_LOCK_FREQ_L2	293220
+#define BUS_LOCK_FREQ_L3	293176
+#define BUS_LOCK_FREQ_L4	176176
+#define BUS_LOCK_FREQ_L5	147147
+#define BUS_LOCK_FREQ_L6	110110
+#else
+#define BUS_LOCK_FREQ_L0	400266
+#define BUS_LOCK_FREQ_L1	400200
+#define BUS_LOCK_FREQ_L2	267200
+#define BUS_LOCK_FREQ_L3	267160
+#define BUS_LOCK_FREQ_L4	160160
+#define BUS_LOCK_FREQ_L5	133133
+#define BUS_LOCK_FREQ_L6	100100
+#endif
 /* A5 debug message setting */
 #define FIMC_IS_DEBUG_MSG	0x3F
 #define FIMC_IS_DEBUG_LEVEL	3
 
 #define SDCARD_FW
+#define USE_NIGHT_SHOT
 
 #ifdef SDCARD_FW
 #define FIMC_IS_FW_SDCARD	"/sdcard/fimc_is_fw.bin"
@@ -160,10 +175,12 @@ enum sensor_list {
 	SENSOR_S5K6A3_CSI_A	= 2,
 	SENSOR_S5K4E5_CSI_A	= 3,
 	SENSOR_S5K3H7_CSI_A	= 4,
+	SENSOR_S5K6B2_CSI_A	= 9,
 	SENSOR_S5K3H2_CSI_B	= 101,
 	SENSOR_S5K6A3_CSI_B	= 102,
 	SENSOR_S5K4E5_CSI_B	= 103,
 	SENSOR_S5K3H7_CSI_B	= 104,
+	SENSOR_S5K6B2_CSI_B	= 109,
 	/* Custom mode */
 	SENSOR_S5K6A3_CSI_B_CUSTOM	= 200,
 };
@@ -173,7 +190,8 @@ enum sensor_name {
 	SENSOR_NAME_S5K6A3	= 2,
 	SENSOR_NAME_S5K4E5	= 3,
 	SENSOR_NAME_S5K3H7	= 4,
-	SENSOR_NAME_CUSTOM	= 5,
+	SENSOR_NAME_S5K6B2	= 9,
+	SENSOR_NAME_CUSTOM	= 100,
 	SENSOR_NAME_END
 };
 
@@ -282,6 +300,9 @@ struct is_sensor {
 	u32 frametime_max_prev_cam;
 	u32 frametime_max_cap;
 	u32 frametime_max_cam;
+#ifdef USE_NIGHT_SHOT
+	u32 frametime_max_LLS;
+#endif
 	int framerate_update;
 };
 

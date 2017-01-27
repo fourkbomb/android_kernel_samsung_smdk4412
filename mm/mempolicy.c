@@ -511,7 +511,7 @@ static inline int check_pmd_range(struct vm_area_struct *vma, pud_t *pud,
 	do {
 		next = pmd_addr_end(addr, end);
 		split_huge_page_pmd(vma->vm_mm, pmd);
-		if (pmd_none_or_clear_bad(pmd))
+		if (pmd_none_or_trans_huge_or_clear_bad(pmd))
 			continue;
 		if (check_pte_range(vma, pmd, addr, next, nodes,
 				    flags, private))
@@ -932,8 +932,13 @@ static int migrate_to_node(struct mm_struct *mm, int source, int dest,
 		return PTR_ERR(vma);
 
 	if (!list_empty(&pagelist)) {
+#ifndef CONFIG_DMA_CMA
 		err = migrate_pages(&pagelist, new_node_page, dest,
 								false, true);
+#else
+		err = migrate_pages(&pagelist, new_node_page, dest,
+								false, true, 0);
+#endif
 		if (err)
 			putback_lru_pages(&pagelist);
 	}
@@ -1152,9 +1157,15 @@ static long do_mbind(unsigned long start, unsigned long len,
 		err = mbind_range(mm, start, end, new);
 
 		if (!list_empty(&pagelist)) {
+#ifndef CONFIG_DMA_CMA
 			nr_failed = migrate_pages(&pagelist, new_vma_page,
 						(unsigned long)vma,
 						false, true);
+#else
+			nr_failed = migrate_pages(&pagelist, new_vma_page,
+						(unsigned long)vma,
+						false, true, 0);
+#endif
 			if (nr_failed)
 				putback_lru_pages(&pagelist);
 		}

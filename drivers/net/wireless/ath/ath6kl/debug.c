@@ -63,21 +63,6 @@ int ath6kl_printk(const char *level, const char *fmt, ...)
 	return rtn;
 }
 
-char *sec_conv_mac(const u8 *mac)
-{
-	static char ret_mac[16];
-	char *p = ret_mac;
-
-	p = pack_hex_byte(p, mac[0]);
-	*p++ = '_';
-	p = pack_hex_byte(p, mac[4]);
-	*p++ = ':';
-	p = pack_hex_byte(p, mac[5]);
-	*p++ = '\0';
-
-	return ret_mac;
-}
-
 #ifdef CONFIG_ATH6KL_DEBUG
 
 #define REG_OUTPUT_LEN_PER_LINE	25
@@ -400,8 +385,10 @@ static ssize_t ath6kl_fwlog_block_read(struct file *file,
 
 		ret = wait_for_completion_interruptible(
 			&ar->debug.fwlog_completion);
-		if (ret == -ERESTARTSYS)
+		if (ret == -ERESTARTSYS) {
+			vfree(buf);
 			return ret;
+		}
 
 		spin_lock(&ar->debug.fwlog_queue.lock);
 	}
@@ -1601,6 +1588,7 @@ static ssize_t ath6kl_bgscan_int_write(struct file *file,
 		bgscan_int = 0xffff;
 
 	vif->bg_scan_period = bgscan_int;
+
 	ath6kl_wmi_scanparams_cmd(ar->wmi, 0, 0, 0, bgscan_int, 0, 0, 0, 3,
 				  vif->scan_ctrl_flag, 0, 0);
 
@@ -1667,61 +1655,6 @@ static ssize_t ath6kl_listen_int_read(struct file *file,
 static const struct file_operations fops_listen_int = {
 	.read = ath6kl_listen_int_read,
 	.write = ath6kl_listen_int_write,
-	.open = ath6kl_debugfs_open,
-	.owner = THIS_MODULE,
-	.llseek = default_llseek,
-};
-
-static ssize_t ath6kl_mcastrate_write(struct file *file,
-				       const char __user *user_buf,
-				       size_t count, loff_t *ppos)
-{
-	struct ath6kl *ar = file->private_data;
-	struct ath6kl_vif *vif;
-	u16 mcastrate;
-	char buf[32];
-	ssize_t len;
-
-	vif = ath6kl_vif_first(ar);
-	if (!vif)
-		return -EIO;
-
-	len = min(count, sizeof(buf) - 1);
-	if (copy_from_user(buf, user_buf, len))
-		return -EFAULT;
-
-	buf[len] = '\0';
-	if (kstrtou16(buf, 0, &mcastrate))
-		return -EINVAL;
-
-	vif->mcastrate = mcastrate;
-	ath6kl_wmi_mcastrate_cmd(ar->wmi, vif->fw_vif_idx,
-				      vif->mcastrate);
-
-	return count;
-}
-
-static ssize_t ath6kl_mcastrate_read(struct file *file,
-				      char __user *user_buf,
-				      size_t count, loff_t *ppos)
-{
-	struct ath6kl *ar = file->private_data;
-	struct ath6kl_vif *vif;
-	char buf[32];
-	int len;
-
-	vif = ath6kl_vif_first(ar);
-	if (!vif)
-		return -EIO;
-
-	len = scnprintf(buf, sizeof(buf), "%u\n", vif->mcastrate);
-
-	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
-}
-
-static const struct file_operations fops_mcastrate = {
-	.read = ath6kl_mcastrate_read,
-	.write = ath6kl_mcastrate_write,
 	.open = ath6kl_debugfs_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
@@ -1862,9 +1795,6 @@ int ath6kl_debug_init(struct ath6kl *ar)
 
 	debugfs_create_file("listen_interval", S_IRUSR | S_IWUSR,
 			    ar->debugfs_phy, ar, &fops_listen_int);
-
-	debugfs_create_file("mcast_rate", S_IRUSR | S_IWUSR,
-			    ar->debugfs_phy, ar, &fops_mcastrate);
 
 	debugfs_create_file("power_params", S_IWUSR, ar->debugfs_phy, ar,
 						&fops_power_params);

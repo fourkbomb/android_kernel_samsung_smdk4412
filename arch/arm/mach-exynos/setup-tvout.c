@@ -38,12 +38,25 @@ struct platform_device; /* don't need the contents */
 void s5p_int_src_hdmi_hpd(struct platform_device *pdev)
 {
 	printk(KERN_INFO "%s()\n", __func__);
+#ifdef CONFIG_MACH_U1_NA_USCC
+	s3c_gpio_cfgpin(GPIO_HDMI_HPD , S3C_GPIO_INPUT);
+#else
 	s3c_gpio_cfgpin(GPIO_HDMI_HPD, S3C_GPIO_SFN(0x3));
+#endif
+#ifdef CONFIG_SAMSUNG_MHL
 	s3c_gpio_setpull(GPIO_HDMI_HPD, S3C_GPIO_PULL_NONE);
+#else
+	s3c_gpio_setpull(GPIO_HDMI_HPD, S3C_GPIO_PULL_DOWN);
+#endif
 }
 
 void s5p_int_src_ext_hpd(struct platform_device *pdev)
 {
+#ifdef CONFIG_MACH_U1_NA_USCC /* NC */
+	printk(KERN_INFO "%s()\n", __func__);
+	s3c_gpio_cfgpin(GPIO_HDMI_HPD, S3C_GPIO_INPUT);
+	s3c_gpio_setpull(GPIO_HDMI_HPD, S3C_GPIO_PULL_DOWN);
+#else
 	printk(KERN_INFO "%s()\n", __func__);
 	s3c_gpio_cfgpin(GPIO_HDMI_HPD, S3C_GPIO_SFN(0xf));
 	/* To avoid floating state of the HPD pin *
@@ -52,6 +65,7 @@ void s5p_int_src_ext_hpd(struct platform_device *pdev)
 	s3c_gpio_setpull(GPIO_HDMI_HPD, S3C_GPIO_PULL_DOWN);
 #else
 	s3c_gpio_setpull(GPIO_HDMI_HPD, S3C_GPIO_PULL_NONE);
+#endif
 #endif
 }
 
@@ -71,7 +85,11 @@ int s5p_v4l2_hpd_read_gpio(void)
 void s5p_v4l2_int_src_hdmi_hpd(void)
 {
 	s3c_gpio_cfgpin(HDMI_GPX(7), S3C_GPIO_SFN(0x3));
+#ifdef CONFIG_SAMSUNG_MHL
+	s3c_gpio_setpull(HDMI_GPX(7), S3C_GPIO_PULL_NONE);
+#else
 	s3c_gpio_setpull(HDMI_GPX(7), S3C_GPIO_PULL_DOWN);
+#endif
 }
 
 void s5p_v4l2_int_src_ext_hpd(void)

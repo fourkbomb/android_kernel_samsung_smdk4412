@@ -32,6 +32,13 @@
 #include <plat/pm.h>
 #include <plat/cpu.h>
 
+#if defined(CONFIG_MACH_PX) || defined(CONFIG_MACH_Q1_BD) ||\
+	defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) ||\
+	defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_TAB3) ||\
+	defined(CONFIG_MACH_GC2PD)
+#include <mach/sec_debug.h>
+#endif
+
 struct exynos_dvfs_info *exynos_info;
 
 static struct regulator *arm_regulator;
@@ -316,6 +323,7 @@ int exynos_cpufreq_lock(unsigned int nId,
 	mutex_lock(&set_freq_lock);
 	freq_old = policy->cur;
 	freq_new = freq_table[cpufreq_level].frequency;
+
 	if (freq_old < freq_new) {
 		/* Find out current level index */
 		for (i = 0; freq_table[i].frequency != CPUFREQ_TABLE_END; i++) {
@@ -348,6 +356,7 @@ int exynos_cpufreq_lock(unsigned int nId,
 
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 	}
+
 	mutex_unlock(&set_freq_lock);
 
 	return ret;
@@ -470,6 +479,7 @@ int exynos_cpufreq_upper_limit(unsigned int nId,
 	/* If cur frequency is higher than limit freq, it needs to update */
 	freq_old = policy->cur;
 	freq_new = freq_table[cpufreq_level].frequency;
+
 	if (freq_old > freq_new) {
 		/* Find out current level index */
 		for (i = 0; i <= exynos_info->min_support_idx; i++) {
@@ -628,6 +638,13 @@ static int exynos_cpufreq_notifier_event(struct notifier_block *this,
 						exynos_info->pm_lock_idx);
 		if (ret < 0)
 			return NOTIFY_BAD;
+#elif defined(CONFIG_ARCH_EXYNOS4)
+		if (soc_is_exynos4212()) {
+			ret = exynos_cpufreq_upper_limit(DVFS_LOCK_ID_PM,
+					exynos_info->pm_lock_idx);
+			if (ret < 0)
+				return NOTIFY_BAD;
+		}
 #endif
 		exynos_cpufreq_disable = true;
 
@@ -651,6 +668,9 @@ static int exynos_cpufreq_notifier_event(struct notifier_block *this,
 		exynos_cpufreq_lock_free(DVFS_LOCK_ID_PM);
 #if defined(CONFIG_CPU_EXYNOS4210) || defined(CONFIG_SLP)
 		exynos_cpufreq_upper_limit_free(DVFS_LOCK_ID_PM);
+#elif defined(CONFIG_ARCH_EXYNOS4)
+		if (soc_is_exynos4212())
+			exynos_cpufreq_upper_limit_free(DVFS_LOCK_ID_PM);
 #endif
 		exynos_cpufreq_disable = false;
 		/* If current governor is userspace or performance or powersave,

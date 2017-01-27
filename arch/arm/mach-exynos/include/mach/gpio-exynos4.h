@@ -193,7 +193,7 @@ enum exynos4212_gpio_number {
 
 /* the end of the EXYNOS4 specific gpios */
 #define EXYNOS4210_GPIO_END	(EXYNOS4212_GPV4(EXYNOS4212_GPIO_V4_NR) + 1)
-#define EXYNOS4212_GPIO_END	(EXYNOS4210_GPJ1(EXYNOS4210_GPIO_J1_NR) + 1)
+#define EXYNOS4212_GPIO_END	(EXYNOS4212_GPV4(EXYNOS4212_GPIO_V4_NR) + 1)
 
 #define EXYNOS4XXX_GPIO_END	(EXYNOS4212_GPIO_END > EXYNOS4210_GPIO_END ? \
 				 EXYNOS4212_GPIO_END : EXYNOS4210_GPIO_END)
@@ -205,8 +205,9 @@ enum exynos4212_gpio_number {
 
 #include <asm-generic/gpio.h>
 #if defined(CONFIG_MACH_MIDAS) || defined(CONFIG_MACH_SLP_MIDAS) \
-			       || defined(CONFIG_MACH_SLP_PQ) \
-			       || defined(CONFIG_MACH_SLP_PQ_LTE)
+				|| defined(CONFIG_MACH_SLP_PQ) \
+				|| defined(CONFIG_MACH_SLP_PQ_LTE)\
+				|| defined(CONFIG_MACH_SLP_T0_LTE)
 #include "gpio-midas.h"
 #endif
 
@@ -214,12 +215,8 @@ enum exynos4212_gpio_number {
 #include "gpio-naples.h"
 #endif
 
-#if defined(CONFIG_MACH_U1)
+#if defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_TRATS)
 #include "gpio-u1.h"
-#endif
-
-#if defined(CONFIG_MACH_U1CAMERA_BD)
-#include "gpio-u1camera.h"
 #endif
 
 #if defined(CONFIG_MACH_Q1_BD)
@@ -238,4 +235,7 @@ enum exynos4212_gpio_number {
 #include "gpio-p8.h"
 #endif
 
+#if defined(CONFIG_MACH_P8LTE)
+#include "gpio-p8lte.h"
+#endif
 #endif /* __ASM_ARCH_GPIO_EXYNOS4_H */

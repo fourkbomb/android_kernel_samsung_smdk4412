@@ -66,6 +66,10 @@
 #include <plat/sysmmu.h>
 #endif
 
+#ifdef CONFIG_SLP_DMABUF
+#include <media/videobuf2-core.h>
+#endif
+
 #define MFC_MINOR	252
 #define MFC_FW_NAME	"mfc_fw.bin"
 
@@ -108,6 +112,79 @@ static inline void clear_magic(unsigned char *addr)
 }
 #endif
 
+#ifdef CONFIG_SLP_DMABUF
+/**
+ * _mfc_dmabuf_put() - release memory associated with
+ * a DMABUF shared buffer
+ */
+static void _mfc_dmabuf_put(struct vb2_plane *planes)
+{
+	unsigned int plane;
+
+	for (plane = 0; plane < MFC_NUM_PLANE; ++plane) {
+		void *mem_priv = planes[plane].mem_priv;
+
+		if (mem_priv) {
+			dma_buf_detach(planes[plane].dbuf,
+					planes[plane].mem_priv);
+			dma_buf_put(planes[plane].dbuf);
+			planes[plane].dbuf = NULL;
+			planes[plane].mem_priv = NULL;
+		}
+	}
+}
+
+void mfc_queue_free(struct mfc_inst_ctx *mfc_ctx)
+{
+	struct vb2_plane *planes;
+	int buffer;
+
+	for (buffer = 0; buffer < VIDEO_MAX_PLANES; ++buffer) {
+		planes = mfc_ctx->enc_planes[buffer];
+
+		if (!planes)
+			continue;
+
+		_mfc_dmabuf_put(planes);
+		kfree(planes);
+		planes = NULL;
+	}
+}
+
+int mfc_queue_alloc(struct mfc_inst_ctx *mfc_ctx)
+{
+	struct vb2_plane *planes;
+	int buffer;
+	int ret = 0;
+
+	for (buffer = 0; buffer < MFC_NUM_PLANE; ++buffer) {
+		planes = kzalloc(sizeof(struct vb2_plane), GFP_KERNEL);
+		if (!planes) {
+			printk(KERN_INFO "MFC Queue memory alloc failed\n");
+			ret = -ENOMEM;
+			goto err;
+		}
+
+		planes->mem_priv = NULL;
+		mfc_ctx->enc_planes[buffer] = planes;
+	}
+
+	for (buffer = MFC_NUM_PLANE; buffer < VIDEO_MAX_PLANES; ++buffer)
+		mfc_ctx->enc_planes[buffer] = NULL;
+
+	return ret;
+
+err:
+	for (buffer = 0; buffer < VIDEO_MAX_PLANES; buffer++) {
+		if (mfc_ctx->enc_planes[buffer] != NULL)
+			kfree(mfc_ctx->enc_planes[buffer]);
+		mfc_ctx->enc_planes[buffer] = NULL;
+	}
+
+	return ret;
+}
+#endif
+
 static int get_free_inst_id(struct mfc_dev *dev)
 {
 	int slot = 0;
@@ -135,6 +212,25 @@ static int mfc_open(struct inode *inode, struct file *file)
 	file->private_data = NULL;
 
 	mutex_lock(&mfcdev->lock);
+
+#ifdef CONFIG_USE_MFC_CMA
+	if (atomic_read(&mfcdev->inst_cnt) == 0) {
+		size_t size = 0x02800000;
+		mfcdev->cma_vaddr = dma_alloc_coherent(mfcdev->device, size,
+						&mfcdev->cma_dma_addr, 0);
+		if (!mfcdev->cma_vaddr) {
+			printk(KERN_ERR "%s: dma_alloc_coherent returns "
+						"-ENOMEM\n", __func__);
+			mutex_unlock(&mfcdev->lock);
+			return -ENOMEM;
+		}
+		printk(KERN_INFO "%s[%d] size 0x%x, vaddr 0x%x, base 0x%x\n",
+					 __func__, __LINE__, (int)size,
+						(int)mfcdev->cma_vaddr,
+						(int)mfcdev->cma_dma_addr);
+	}
+#endif
+
 #if SUPPORT_SLICE_ENCODING
 	mfcdev->frame_working_flag = 1;
 	mfcdev->frame_sys = 0;
@@ -272,8 +368,6 @@ static int mfc_open(struct inode *inode, struct file *file)
 
 		mfc_ctx->ctxbufofs = mfc_mem_base_ofs(alloc->real) >> 11;
 		mfc_ctx->ctxbufsize = alloc->size;
-		memset((void *)alloc->addr, 0, alloc->size);
-		mfc_mem_cache_clean((void *)alloc->addr, alloc->size);
 	}
 #endif
 
@@ -291,6 +385,13 @@ static int mfc_open(struct inode *inode, struct file *file)
 	mfcdev->frame_working_flag = 0;
 	if (mfcdev->wait_frame_timeout == 1)
 		wake_up(&mfcdev->wait_frame);
+#endif
+#ifdef CONFIG_SLP_DMABUF
+	ret = mfc_queue_alloc(mfc_ctx);
+	if (ret < 0) {
+		mfc_err("mfc_queue_alloc failed\n");
+		goto err_inst_ctx;
+	}
 #endif
 
 	mfc_info("MFC instance [%d:%d] opened", mfc_ctx->id,
@@ -310,6 +411,15 @@ err_inst_cnt:
 #endif
 err_start_hw:
 	if (atomic_read(&mfcdev->inst_cnt) == 0) {
+#ifdef CONFIG_USE_MFC_CMA
+		size_t size = 0x02800000;
+		dma_free_coherent(mfcdev->device, size, mfcdev->cma_vaddr,
+							mfcdev->cma_dma_addr);
+		printk(KERN_INFO "%s[%d] size 0x%x, vaddr 0x%x, base 0x0%x\n",
+				__func__, __LINE__, (int)size,
+				(int) mfcdev->cma_vaddr,
+				(int)mfcdev->cma_dma_addr);
+#endif
 		if (mfc_power_off() < 0)
 			mfc_err("power disable failed\n");
 	}
@@ -369,6 +479,19 @@ static int mfc_release(struct inode *inode, struct file *file)
 			/* release Freq lock back to normal */
 			exynos4_busfreq_lock_free(DVFS_LOCK_ID_MFC);
 			mfc_dbg("[%s] Bus Freq lock Released Normal!\n", __func__);
+		}
+	}
+#endif
+
+#if defined(CONFIG_MACH_GC1) && defined(CONFIG_EXYNOS4_CPUFREQ)
+	/* Release MFC & CPU Frequency lock for High resolution */
+	if (mfc_ctx->cpufreq_flag == true) {
+		atomic_dec(&dev->cpufreq_lock_cnt);
+		mfc_ctx->cpufreq_flag = false;
+		if (atomic_read(&dev->cpufreq_lock_cnt) == 0) {
+			/* release Freq lock back to normal */
+			exynos_cpufreq_lock_free(DVFS_LOCK_ID_MFC);
+			mfc_dbg("[%s] CPU Freq lock Released Normal!\n", __func__);
 		}
 	}
 #endif
@@ -456,10 +579,24 @@ static int mfc_release(struct inode *inode, struct file *file)
 	if (mfcdev->wait_frame_timeout == 1)
 		wake_up(&dev->wait_frame);
 #endif
+#ifdef CONFIG_SLP_DMABUF
+	mfc_queue_free(mfc_ctx);
+#endif
 
 err_pwr_disable:
-	mutex_unlock(&dev->lock);
 
+#ifdef CONFIG_USE_MFC_CMA
+	if (atomic_read(&mfcdev->inst_cnt) == 0) {
+		size_t size = 0x02800000;
+		dma_free_coherent(mfcdev->device, size, mfcdev->cma_vaddr,
+					mfcdev->cma_dma_addr);
+		printk(KERN_INFO "%s[%d] size 0x%x, vaddr 0x%x, base 0x0%x\n",
+				__func__, __LINE__, (int)size,
+				(int) mfcdev->cma_vaddr,
+				(int)mfcdev->cma_dma_addr);
+	}
+#endif
+	mutex_unlock(&dev->lock);
 	return ret;
 }
 
@@ -860,6 +997,16 @@ static long mfc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		/* RMVME: need locking ? */
 		mutex_lock(&dev->lock);
 
+		if (mfc_ctx->state < INST_STATE_SETUP) {
+			mfc_err("IOCTL_MFC_GET_CONFIG invalid state: 0x%08x\n",
+					mfc_ctx->state);
+			in_param.ret_code = MFC_STATE_INVALID;
+			ret = -EINVAL;
+
+			mutex_unlock(&dev->lock);
+			break;
+		}
+
 		cfg_arg = (struct mfc_config_arg *)&in_param.args;
 
 		in_param.ret_code = mfc_get_inst_cfg(mfc_ctx, cfg_arg->type,
@@ -966,9 +1113,13 @@ static int mfc_mmap(struct file *file, struct vm_area_struct *vma)
 	unsigned long start, size;
 #endif
 #endif
+	mfc_info("%s line : %d IN\n", __func__, __LINE__);
 	mfc_ctx = (struct mfc_inst_ctx *)file->private_data;
-	if (!mfc_ctx)
+	if (!mfc_ctx) {
+		mfc_err("%s line : %d mfc_ctx is NULL\n",
+					__func__, __LINE__);
 		return -EINVAL;
+	}
 
 #if !(defined(CONFIG_VIDEO_MFC_VCM_UMP) || defined(CONFIG_S5P_VMEM))
 	dev = mfc_ctx->dev;
@@ -1208,9 +1359,30 @@ static int mfc_mmap(struct file *file, struct vm_area_struct *vma)
 	return 0;
 }
 
+#ifdef CONFIG_USE_MFC_CMA
+/* FIXME: workaround for CMA migration fail due to page lock */
+static int mfc_open_with_retry(struct inode *inode, struct file *file)
+{
+	int ret;
+	int i = 0;
+
+	ret = mfc_open(inode, file);
+
+	while (ret == -ENOMEM && i++ < 10) {
+		msleep(1000);
+		ret = mfc_open(inode, file);
+	}
+
+	return ret;
+}
+#define MFC_OPEN mfc_open_with_retry
+#else
+#define MFC_OPEN mfc_open
+#endif
+
 static const struct file_operations mfc_fops = {
 	.owner		= THIS_MODULE,
-	.open		= mfc_open,
+	.open		= MFC_OPEN,
 	.release	= mfc_release,
 	.unlocked_ioctl	= mfc_ioctl,
 	.mmap		= mfc_mmap,

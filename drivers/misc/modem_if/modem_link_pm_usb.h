@@ -25,6 +25,7 @@ struct link_pm_data {
 	unsigned gpio_link_active;
 	unsigned gpio_link_hostwake;
 	unsigned gpio_link_slavewake;
+	unsigned gpio_hub_suspend;
 	int (*link_reconnect)(void);
 	int link_reconnect_cnt;
 
@@ -41,30 +42,25 @@ struct link_pm_data {
 	int hub_handshake_done;
 	struct wake_lock hub_lock;
 	struct delayed_work link_pm_hub;
+	bool hub_work_running;
 	int hub_on_retry_cnt;
 	struct device *root_hub;
 
-	struct delayed_work link_pm_work;
-	struct delayed_work link_pm_start;
-	struct delayed_work link_reconnect_work;
-	bool resume_requested;
-	bool link_pm_active;
-
-	struct wake_lock l2_wake;
-	struct wake_lock boot_wake;
 	struct notifier_block pm_notifier;
 	bool dpm_suspending;
 
 	int (*port_enable)(int, int);
 
-	int (*cpufreq_lock)(void);
-	int (*cpufreq_unlock)(void);
+	int (*freq_lock)(struct device *dev);
+	int (*freq_unlock)(struct device *dev);
 
 	int autosuspend_delay_ms; /* if zero, the default value is used */
+	bool autosuspend;
 };
 
 bool link_pm_set_active(struct usb_link_device *usb_ld);
 bool link_pm_is_connected(struct usb_link_device *usb_ld);
+void link_pm_preactive(struct link_pm_data *pm_data);
 int link_pm_init(struct usb_link_device *usb_ld, void *data);
 
 #endif

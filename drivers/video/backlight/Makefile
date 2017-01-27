@@ -18,6 +18,8 @@ obj-$(CONFIG_LCD_MIPI_TC358764)	+= tc358764_mipi_lcd.o
 obj-$(CONFIG_LCD_LD9040)	+= ld9040.o
 obj-$(CONFIG_LCD_AMS369FG06)	   += ams369fg06.o
 obj-$(CONFIG_LCD_S6E8AA0)	+= s6e8aa0.o
+obj-$(CONFIG_LCD_EA8061)	+= ea8061.o
+obj-$(CONFIG_LCD_S6D6AA1)	+= s6d6aa1.o
 obj-$(CONFIG_LCD_S6E39A0X02)	+= s6e39a0x02.o
 obj-$(CONFIG_LCD_LMS501KF03)	   += lms501kf03.o
 
@@ -28,6 +30,7 @@ obj-$(CONFIG_BACKLIGHT_GENERIC)	+= generic_bl.o
 obj-$(CONFIG_BACKLIGHT_HP700)	+= jornada720_bl.o
 obj-$(CONFIG_BACKLIGHT_HP680)	+= hp680_bl.o
 obj-$(CONFIG_BACKLIGHT_LOCOMO)	+= locomolcd.o
+obj-$(CONFIG_BACKLIGHT_LP855X)	+= lp855x_bl.o
 obj-$(CONFIG_BACKLIGHT_OMAP1)	+= omap1_bl.o
 obj-$(CONFIG_BACKLIGHT_PROGEAR) += progear_bl.o
 obj-$(CONFIG_BACKLIGHT_CARILLO_RANCH) += cr_bllcd.o

@@ -15,6 +15,18 @@
 #include <plat/system-reset.h>
 #include <plat/watchdog-reset.h>
 
+#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) || defined(CONFIG_MACH_TAB3)
+#include <mach/regs-pmu.h>
+static void exynos_sw_reset(void)
+{
+	int count = 3;
+
+	while (count--) {
+		__raw_writel(0x1, S5P_SWRESET);
+		mdelay(500);
+	}
+}
+#endif
 
 void (*s5p_reset_hook)(void);
 
@@ -24,6 +36,10 @@ void arch_reset(char mode, const char *cmd)
 
 	if (s5p_reset_hook)
 		s5p_reset_hook();
+#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) || defined(CONFIG_MACH_TAB3)
+	else
+		exynos_sw_reset();
+#endif
 
 	/* Perform reset using Watchdog reset
 	 * if there is no s5p_reset_hook()

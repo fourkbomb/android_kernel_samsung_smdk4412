@@ -162,7 +162,7 @@ static bool oom_unkillable_task(struct task_struct *p,
 unsigned int oom_badness(struct task_struct *p, struct mem_cgroup *mem,
 		      const nodemask_t *nodemask, unsigned long totalpages)
 {
-	int points;
+	long points;
 
 	if (oom_unkillable_task(p, mem, nodemask))
 		return 0;
@@ -695,6 +695,10 @@ void out_of_memory(struct zonelist *zonelist, gfp_t gfp_mask,
 	unsigned int points;
 	enum oom_constraint constraint = CONSTRAINT_NONE;
 	int killed = 0;
+
+#ifdef CONFIG_LOWMEM_CHECK
+	panic("out_of_memory!\n");
+#endif
 
 	blocking_notifier_call_chain(&oom_notify_list, 0, &freed);
 	if (freed > 0)

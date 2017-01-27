@@ -218,6 +218,21 @@ udc_proc_read(char *page, char **start, off_t off, int count,
 #include "s3c_udc_otg_xfer_dma.c"
 
 /*
+*  udc_core_disconnect
+*  Ask On Connection - Vzw requirement
+*/
+static void udc_core_disconect(struct s3c_udc *dev)
+{
+	u32 uTemp;
+
+	printk(KERN_DEBUG "usb: %s -dev->softconnect=%d\n",
+						__func__, dev->softconnect);
+	uTemp = __raw_readl(dev->regs + S3C_UDC_OTG_DCTL);
+	uTemp |= SOFT_DISCONNECT;
+	__raw_writel(uTemp, dev->regs + S3C_UDC_OTG_DCTL);
+}
+
+/*
  *	udc_disable - disable USB device controller
  */
 static void udc_disable(struct s3c_udc *dev)
@@ -307,6 +322,18 @@ int s3c_vbus_enable(struct usb_gadget *gadget, int is_active)
 {
 	unsigned long flags;
 	struct s3c_udc *dev = container_of(gadget, struct s3c_udc, gadget);
+	mutex_lock(&dev->mutex);
+
+	if (dev->is_usb_ready) {
+		printk(KERN_DEBUG "usb: %s, ready u_e: %d, is_active: %d\n",
+				__func__, dev->udc_enabled, is_active);
+	} else { /* USB is not ready to enable USB PHY */
+		printk(KERN_DEBUG "usb: %s, not ready u_e: %d, is_active: %d\n",
+				__func__, dev->udc_enabled, is_active);
+		dev->udc_enabled = is_active;
+		mutex_unlock(&dev->mutex);
+		return 0;
+	}
 
 	if (dev->udc_enabled != is_active) {
 		dev->udc_enabled = is_active;
@@ -324,11 +351,14 @@ int s3c_vbus_enable(struct usb_gadget *gadget, int is_active)
 			wake_lock_timeout(&dev->usbd_wake_lock, HZ * 5);
 			wake_lock_timeout(&dev->usb_cb_wake_lock, HZ * 5);
 		} else {
-			printk(KERN_DEBUG "usb: %s is_active=%d(udc_enable)\n",
-					__func__, is_active);
+			printk(KERN_DEBUG "usb: %s is_active=%d(udc_enable),"
+							"softconnect=%d\n",
+					__func__, is_active, dev->softconnect);
 			wake_lock(&dev->usb_cb_wake_lock);
 			udc_reinit(dev);
 			udc_enable(dev);
+			if (!dev->softconnect)
+				udc_core_disconect(dev);
 		}
 	} else {
 		printk(KERN_DEBUG "usb: %s, udc_enabled : %d, is_active : %d\n",
@@ -336,7 +366,7 @@ int s3c_vbus_enable(struct usb_gadget *gadget, int is_active)
 
 	}
 
-
+	mutex_unlock(&dev->mutex);
 	return 0;
 }
 
@@ -384,9 +414,12 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 #if defined(CONFIG_USB_EXYNOS_SWITCH) || defined(CONFIG_MFD_MAX77693)\
 	|| defined(CONFIG_MFD_MAX8997) || defined(CONFIG_MFD_MAX77686)
 	printk(KERN_INFO "usb: Skip udc_enable\n");
+
 #else
 	printk(KERN_INFO "usb: udc_enable\n");
+#ifndef CONFIG_MACH_WATCH
 	udc_enable(dev);
+#endif
 	dev->udc_enabled = 1;
 #endif
 	return 0;
@@ -627,6 +660,7 @@ static void reconfig_usbd(void)
 	__raw_writel(utemp, dev->regs + S3C_UDC_OTG_DCTL);
 
 	reset_usbd();
+
 }
 
 static void set_max_pktsize(struct s3c_udc *dev, enum usb_device_speed speed)
@@ -642,13 +676,17 @@ static void set_max_pktsize(struct s3c_udc *dev, enum usb_device_speed speed)
 	} else {
 		ep0_fifo_size = 64;
 		ep_fifo_size = 64;
-		ep_fifo_size2 = 64;
+		ep_fifo_size2 = 1023;
 		dev->gadget.speed = USB_SPEED_FULL;
 	}
 
 	dev->ep[0].ep.maxpacket = ep0_fifo_size;
-	for (i = 1; i < S3C_MAX_ENDPOINTS; i++)
-		dev->ep[i].ep.maxpacket = ep_fifo_size;
+	for (i = 1; i < S3C_MAX_ENDPOINTS; i++) {
+		if (dev->ep[i].bmAttributes  == USB_ENDPOINT_XFER_ISOC)
+			dev->ep[i].ep.maxpacket = ep_fifo_size2;
+		else
+			dev->ep[i].ep.maxpacket = ep_fifo_size;
+	}
 
 	/* EP0 - Control IN (64 bytes)*/
 	ep_ctrl = __raw_readl(dev->regs + S3C_UDC_OTG_DIEPCTL(EP0_CON));
@@ -680,6 +718,7 @@ static int s3c_ep_enable(struct usb_ep *_ep,
 	/* xfer types must match, except that interrupt ~= bulk */
 	if (ep->bmAttributes != desc->bmAttributes
 	    && ep->bmAttributes != USB_ENDPOINT_XFER_BULK
+	    && ep->bmAttributes != USB_ENDPOINT_XFER_ISOC
 	    && desc->bmAttributes != USB_ENDPOINT_XFER_INT) {
 
 		DEBUG("%s: %s type mismatch\n", __func__, _ep->name);
@@ -894,6 +933,9 @@ static void s3c_udc_soft_disconnect(void)
 
 static int s3c_udc_pullup(struct usb_gadget *gadget, int is_on)
 {
+	struct s3c_udc *dev = container_of(gadget, struct s3c_udc, gadget);
+	dev->softconnect = is_on;
+
 	if (is_on)
 		s3c_udc_soft_connect();
 	else
@@ -1143,19 +1185,40 @@ static struct s3c_udc memory = {
 	},
 	.ep[15] = {
 		.ep = {
-			.name = "ep15-int",
+			.name = "ep15-iso",
 			.ops = &s3c_ep_ops,
-			.maxpacket = EP_FIFO_SIZE,
+			.maxpacket = EP_FIFO_SIZE2,
 		},
 		.dev = &memory,
 
 		.bEndpointAddress = USB_DIR_IN | 15,
-		.bmAttributes = USB_ENDPOINT_XFER_INT,
+		.bmAttributes = USB_ENDPOINT_XFER_ISOC,
 
-		.ep_type = ep_interrupt,
+		.ep_type = ep_iso_in,
 		.fifo = (unsigned int) S3C_UDC_OTG_EP15_FIFO,
 	},
 };
+
+static void usb_ready(struct work_struct *work)
+{
+	struct s3c_udc *dev =
+	    container_of(work, struct s3c_udc, usb_ready_work.work);
+
+	if (!dev) {
+		printk(KERN_DEBUG "usb: %s dev is NULL\n", __func__);
+		return ;
+	}
+
+	printk(KERN_DEBUG "usb: %s udc_enable=%d\n",
+			__func__, dev->udc_enabled);
+
+	dev->is_usb_ready = true;
+
+	if (dev->udc_enabled) {
+		dev->udc_enabled = 0;
+		s3c_vbus_enable(&dev->gadget, 1);
+	}
+}
 
 /*
  *	probe - binds to the platform device
@@ -1262,6 +1325,14 @@ static int s3c_udc_probe(struct platform_device *pdev)
 
 	create_proc_files();
 
+	INIT_DELAYED_WORK(&dev->usb_ready_work, usb_ready);
+#ifdef CONFIG_MACH_ZEST
+	schedule_delayed_work(&dev->usb_ready_work, msecs_to_jiffies(10000));
+#else
+	schedule_delayed_work(&dev->usb_ready_work, msecs_to_jiffies(15000));
+#endif
+	mutex_init(&dev->mutex);
+
 	return retval;
 err_clk:
 	clk_put(dev->clk);
@@ -1298,6 +1369,8 @@ static int s3c_udc_remove(struct platform_device *pdev)
 	the_controller = 0;
 	wake_lock_destroy(&dev->usbd_wake_lock);
 	wake_lock_destroy(&dev->usb_cb_wake_lock);
+	cancel_delayed_work(&dev->usb_ready_work);
+	mutex_destroy(&dev->mutex);
 
 	return 0;
 }

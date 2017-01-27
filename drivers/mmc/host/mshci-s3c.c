@@ -29,6 +29,8 @@
 #include <plat/clock.h>
 #include <plat/cpu.h>
 
+#include <mach/dev.h>
+
 #include "mshci.h"
 
 #ifdef CONFIG_MMC_MSHCI_S3C_DMA_MAP
@@ -408,13 +410,14 @@ static int __devinit mshci_s3c_probe(struct platform_device *pdev)
 				if (parent_clk) {
 #ifdef CONFIG_EXYNOS4_MSHC_EPLL_45MHZ
 					if (!strcmp("fout_epll", \
-							parent_clk->name)) {
-						clk_set_rate \
+						parent_clk->name) &&
+						soc_is_exynos4210()) {
+							clk_set_rate \
 							(parent_clk, 180633600);
 						pdata->cfg_ddr(pdev, 0);
 #elif defined(CONFIG_EXYNOS4_MSHC_VPLL_46MHZ)
 					if (!strcmp("fout_vpll", \
-							parent_clk->name)) {
+						parent_clk->name)) {
 						clk_set_rate \
 							(parent_clk, 370882812);
 						pdata->cfg_ddr(pdev, 0);
@@ -460,7 +463,19 @@ static int __devinit mshci_s3c_probe(struct platform_device *pdev)
 	if (!host->ioaddr) {
 		dev_err(dev, "failed to map registers\n");
 		ret = -ENXIO;
-		goto err_req_regs;
+		goto err_add_host;
+	}
+
+	if (soc_is_exynos4212()) {
+		host->bus_dev = dev_get("exynos-busfreq");
+		if (host->bus_dev == (struct device *)-ENODEV) {
+			dev_err(dev, "failed to get bus_dev\n");
+			host->bus_dev = 0;
+		}
+		host->host_dev = dev;
+	} else {
+		host->bus_dev = NULL;
+		host->host_dev = NULL;
 	}
 
 	/* Ensure we have minimal gpio selected CMD/CLK/Detect */
@@ -541,8 +556,9 @@ static int __devinit mshci_s3c_probe(struct platform_device *pdev)
 	return 0;
 
  err_add_host:
-	release_resource(sc->ioarea);
-	kfree(sc->ioarea);
+	if (host->ioaddr)
+		iounmap(host->ioaddr);
+	release_mem_region(sc->ioarea->start, resource_size(sc->ioarea));
 
  err_req_regs:
 	for (ptr = 0; ptr < MAX_BUS_CLK; ptr++) {
@@ -629,7 +645,11 @@ static void __exit mshci_s3c_exit(void)
 	platform_driver_unregister(&mshci_s3c_driver);
 }
 
+#ifdef CONFIG_FAST_RESUME
+beforeresume_initcall(mshci_s3c_init);
+#else
 module_init(mshci_s3c_init);
+#endif
 module_exit(mshci_s3c_exit);
 
 MODULE_DESCRIPTION("Samsung MSHCI (HSMMC) glue");

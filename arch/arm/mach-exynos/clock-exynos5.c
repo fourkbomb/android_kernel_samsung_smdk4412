@@ -1605,7 +1605,7 @@ struct clk exynos5_init_dmaclocks[] = {
 	},
 };
 
-#ifndef CONFIG_SAMSUNG_C2C
+#ifndef CONFIG_EXYNOS_C2C
 struct clk exynos5_c2c_clock = {
 	.name		= "c2c",
 	.devname	= "samsung-c2c",
@@ -2890,7 +2890,7 @@ void __init exynos5_register_clocks(void)
 		s3c_register_clksrc(&exynos5_clk_aclk_c2c_rev0, 1);
 	}
 
-#ifndef CONFIG_SAMSUNG_C2C
+#ifndef CONFIG_EXYNOS_C2C
 	if (soc_is_exynos5250() && (samsung_rev() >= EXYNOS5250_REV_1_0)) {
 		exynos5_c2c_clock.enable = exynos5_clk_ip_sysrgt_ctrl;
 		exynos5_c2c_clock.ctrlbit = ((1 << 2) | (1 << 1));

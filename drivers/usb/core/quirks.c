@@ -117,8 +117,11 @@ static const struct usb_device_id usb_quirk_list[] = {
 	{ USB_DEVICE(0x06a3, 0x0006), .driver_info =
 			USB_QUIRK_CONFIG_INTF_STRINGS },
 
-	/* Guillemot Webcam Hercules Dualpix Exchange*/
+	/* Guillemot Webcam Hercules Dualpix Exchange (2nd ID) */
 	{ USB_DEVICE(0x06f8, 0x0804), .driver_info = USB_QUIRK_RESET_RESUME },
+
+	/* Guillemot Webcam Hercules Dualpix Exchange*/
+	{ USB_DEVICE(0x06f8, 0x3005), .driver_info = USB_QUIRK_RESET_RESUME },
 
 	/* M-Systems Flash Disk Pioneers */
 	{ USB_DEVICE(0x08ec, 0x1000), .driver_info = USB_QUIRK_RESET_RESUME },
@@ -161,6 +164,11 @@ static const struct usb_device_id usb_quirk_list[] = {
 
 	/* STE_MAIN - M7400 */
 	{ USB_DEVICE(0x04cc, 0x2333), .driver_info = USB_QUIRK_HSIC_TUNE },
+
+	/* Qualcomm MDM9x15 */
+	{ USB_DEVICE(0x05c6, 0x9048), .driver_info = USB_QUIRK_HSIC_TUNE },
+
+	{ USB_DEVICE(0x05c6, 0x904C), .driver_info = USB_QUIRK_HSIC_TUNE },
 
 	{ }  /* terminating entry must be last */
 };

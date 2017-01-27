@@ -720,24 +720,6 @@ static struct s5p_mfc_platdata smdk5250_mfc_pd = {
 };
 #endif
 
-#ifdef CONFIG_EXYNOS_C2C
-struct exynos_c2c_platdata smdk5250_c2c_pdata = {
-	.setup_gpio	= NULL,
-	.shdmem_addr	= C2C_SHAREDMEM_BASE,
-	.shdmem_size	= C2C_MEMSIZE_64,
-	.ap_sscm_addr	= NULL,
-	.cp_sscm_addr	= NULL,
-	.rx_width	= C2C_BUSWIDTH_16,
-	.tx_width	= C2C_BUSWIDTH_16,
-	.clk_opp100	= 400,
-	.clk_opp50	= 200,
-	.clk_opp25	= 100,
-	.default_opp_mode	= C2C_OPP25,
-	.get_c2c_state	= NULL,
-	.c2c_sysreg	= S3C_VA_SYS + 0x0360,
-};
-#endif
-
 static int exynos5_notifier_call(struct notifier_block *this,
 					unsigned long code, void *_cmd)
 {
@@ -2229,10 +2211,6 @@ static struct platform_device *p10_devices[] __initdata = {
 	&s5p_device_ace,
 #endif
 
-#ifdef CONFIG_EXYNOS_C2C
-	&exynos_device_c2c,
-#endif
-
 #ifdef CONFIG_S3C64XX_DEV_SPI
 	&exynos_device_spi1,
 #endif
@@ -2296,6 +2274,23 @@ static struct s5p_platform_cec hdmi_cec_data __initdata = {
 #endif
 
 #if defined(CONFIG_CMA)
+static unsigned long fbmem_start;
+static unsigned long fbmem_size;
+static int __init early_fbmem(char *p)
+{
+	char *endp;
+
+	if (!p)
+		return -EINVAL;
+
+	fbmem_size = memparse(p, &endp);
+	if (*endp == '@')
+		fbmem_start = memparse(endp + 1, &endp);
+
+	return endp > p ? 0 : -EINVAL;
+}
+early_param("fbmem", early_fbmem);
+
 static void __init exynos_reserve_mem(void)
 {
 	static struct cma_region regions[] = {
@@ -2304,6 +2299,16 @@ static void __init exynos_reserve_mem(void)
 			.size = 256 * SZ_1M,
 			.start = 0
 		},
+#ifdef CONFIG_EXYNOS_C2C
+		{
+			.name = "c2c_shdmem",
+			.size = C2C_SHAREDMEM_SIZE,
+			{
+				.alignment = C2C_SHAREDMEM_SIZE,
+			},
+			.start = 0
+		},
+#endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_GSC0
 		{
 			.name = "gsc0",
@@ -2333,18 +2338,18 @@ static void __init exynos_reserve_mem(void)
 		},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE0
-	       {
-		       .name = "flite0",
-		       .size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE0 * SZ_1K,
-		       .start = 0
-	       },
+		{
+			.name = "flite0",
+			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE0 * SZ_1K,
+			.start = 0
+		},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE1
-	       {
-		       .name = "flite1",
-		       .size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE1 * SZ_1K,
-		       .start = 0
-	       },
+		{
+			.name = "flite1",
+			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE1 * SZ_1K,
+			.start = 0
+		},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMD
 		{
@@ -2400,7 +2405,7 @@ static void __init exynos_reserve_mem(void)
 #ifdef CONFIG_EXYNOS_C2C
 		"samsung-c2c=c2c_shdmem;"
 #endif
-		"s3cfb.0=fimd;"
+		"s3cfb.0=fimd;samsung-pd.1=fimd;"
 #ifdef CONFIG_AUDIO_SAMSUNG_MEMSIZE_SRP
 		"samsung-rp=srp;"
 #endif
@@ -2412,7 +2417,20 @@ static void __init exynos_reserve_mem(void)
 		"s5p-mixer=tv;"
 		"exynos5-fimc-is=fimc_is;";
 
-    s5p_cma_region_reserve(regions, NULL, 0, map);
+	int i;
+
+	s5p_cma_region_reserve(regions, NULL, 0, map);
+
+	if (!(fbmem_start && fbmem_size))
+		return;
+
+	for (i = 0; i < ARRAY_SIZE(regions); i++) {
+		if (regions[i].name && !strcmp(regions[i].name, "fimd")) {
+			memcpy(phys_to_virt(regions[i].start), phys_to_virt(fbmem_start), fbmem_size * SZ_1K);
+			printk(KERN_INFO "Bootloader sent 'fbmem' : %08X\n", (u32)fbmem_start);
+			break;
+		}
+	}
 }
 #else /* !CONFIG_CMA */
 static inline void exynos_reserve_mem(void)
@@ -2879,6 +2897,8 @@ static void __init p10_machine_init(void)
 	s5p_device_mipi_csis0.dev.parent = &exynos5_device_pd[PD_GSCL].dev;
 	s5p_device_mipi_csis1.dev.parent = &exynos5_device_pd[PD_GSCL].dev;
 #endif
+	s5p_mipi_csis0_default_data.clk_rate = fimc_clk_rate();
+	s5p_mipi_csis1_default_data.clk_rate = fimc_clk_rate();
 	s3c_set_platdata(&s5p_mipi_csis0_default_data,
 			sizeof(s5p_mipi_csis0_default_data), &s5p_device_mipi_csis0);
 	s3c_set_platdata(&s5p_mipi_csis1_default_data,
@@ -2978,10 +2998,6 @@ static void __init p10_machine_init(void)
 	exynos5_gsc_set_clock_rate("dout_aclk_300_gscl", 267000000);
 #endif
 
-#ifdef CONFIG_EXYNOS_C2C
-	exynos_c2c_set_platdata(&smdk5250_c2c_pdata);
-#endif
-
 #ifdef CONFIG_VIDEO_JPEG_V2X
 	exynos5_jpeg_setup_clock(&s5p_device_jpeg.dev, 150000000);
 #endif
@@ -3051,24 +3067,6 @@ static void __init p10_machine_init(void)
 	register_reboot_notifier(&exynos5_reboot_notifier);
 }
 
-#ifdef CONFIG_EXYNOS_C2C
-static void __init exynos_c2c_reserve(void)
-{
-	static struct cma_region regions[] = {
-		{
-			.name = "c2c_shdmem",
-			.size = 64 * SZ_1M,
-			{ .alignment	= 64 * SZ_1M },
-			.start = C2C_SHAREDMEM_BASE
-		}, {
-			.size = 0,
-		}
-	};
-
-	s5p_cma_region_reserve(regions, NULL, 0, map);
-}
-#endif
-
 #if defined(CONFIG_SEC_DEBUG)
 static void __init exynos_init_reserve(void)
 {
@@ -3082,9 +3080,6 @@ MACHINE_START(SMDK5250, "SMDK5250")
 	.map_io		= p10_map_io,
 	.init_machine	= p10_machine_init,
 	.timer		= &exynos4_timer,
-#ifdef CONFIG_EXYNOS_C2C
-	.reserve	= &exynos_c2c_reserve,
-#endif
 #if defined(CONFIG_SEC_DEBUG)
 	.init_early	= &exynos_init_reserve,
 #endif

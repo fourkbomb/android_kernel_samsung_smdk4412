@@ -697,7 +697,7 @@ struct sk_buff *skb_copy(const struct sk_buff *skb, gfp_t gfp_mask)
 EXPORT_SYMBOL(skb_copy);
 
 /**
- *	pskb_copy	-	create copy of an sk_buff with private head.
+ *	__pskb_copy	-	create copy of an sk_buff with private head.
  *	@skb: buffer to copy
  *	@gfp_mask: allocation priority
  *
@@ -709,16 +709,16 @@ EXPORT_SYMBOL(skb_copy);
  *	The returned buffer has a reference count of 1.
  */
 
-struct sk_buff *pskb_copy(struct sk_buff *skb, gfp_t gfp_mask)
+struct sk_buff *__pskb_copy(struct sk_buff *skb, int headroom, gfp_t gfp_mask)
 {
-	unsigned int size = skb_end_pointer(skb) - skb->head;
+	unsigned int size = skb_headlen(skb) + headroom;
 	struct sk_buff *n = alloc_skb(size, gfp_mask);
 
 	if (!n)
 		goto out;
 
 	/* Set the data pointer */
-	skb_reserve(n, skb_headroom(skb));
+	skb_reserve(n, headroom);
 	/* Set the tail pointer and length */
 	skb_put(n, skb_headlen(skb));
 	/* Copy the bytes */
@@ -747,7 +747,7 @@ struct sk_buff *pskb_copy(struct sk_buff *skb, gfp_t gfp_mask)
 out:
 	return n;
 }
-EXPORT_SYMBOL(pskb_copy);
+EXPORT_SYMBOL(__pskb_copy);
 
 /**
  *	pskb_expand_head - reallocate header of &sk_buff
@@ -2985,6 +2985,8 @@ static void sock_rmem_free(struct sk_buff *skb)
  */
 int sock_queue_err_skb(struct sock *sk, struct sk_buff *skb)
 {
+	int len = skb->len;
+
 	if (atomic_read(&sk->sk_rmem_alloc) + skb->truesize >=
 	    (unsigned)sk->sk_rcvbuf)
 		return -ENOMEM;
@@ -2999,7 +3001,7 @@ int sock_queue_err_skb(struct sock *sk, struct sk_buff *skb)
 
 	skb_queue_tail(&sk->sk_error_queue, skb);
 	if (!sock_flag(sk, SOCK_DEAD))
-		sk->sk_data_ready(sk, skb->len);
+		sk->sk_data_ready(sk, len);
 	return 0;
 }
 EXPORT_SYMBOL(sock_queue_err_skb);

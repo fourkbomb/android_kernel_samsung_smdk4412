@@ -782,6 +782,13 @@ static int mem_open(struct inode* inode, struct file* file)
 	if (IS_ERR(mm))
 		return PTR_ERR(mm);
 
+	if (mm) {
+		/* ensure this mm_struct can't be freed */
+		atomic_inc(&mm->mm_count);
+		/* but do not pin its memory */
+		mmput(mm);
+	}
+
 	/* OK to pass negative loff_t, we can catch out-of-range */
 	file->f_mode |= FMODE_UNSIGNED_OFFSET;
 	file->private_data = mm;
@@ -789,57 +796,13 @@ static int mem_open(struct inode* inode, struct file* file)
 	return 0;
 }
 
-static ssize_t mem_read(struct file * file, char __user * buf,
-			size_t count, loff_t *ppos)
+static ssize_t mem_rw(struct file *file, char __user *buf,
+			size_t count, loff_t *ppos, int write)
 {
-	int ret;
-	char *page;
-	unsigned long src = *ppos;
 	struct mm_struct *mm = file->private_data;
-
-	if (!mm)
-		return 0;
-
-	page = (char *)__get_free_page(GFP_TEMPORARY);
-	if (!page)
-		return -ENOMEM;
-
-	ret = 0;
- 
-	while (count > 0) {
-		int this_len, retval;
-
-		this_len = (count > PAGE_SIZE) ? PAGE_SIZE : count;
-		retval = access_remote_vm(mm, src, page, this_len, 0);
-		if (!retval) {
-			if (!ret)
-				ret = -EIO;
-			break;
-		}
-
-		if (copy_to_user(buf, page, retval)) {
-			ret = -EFAULT;
-			break;
-		}
- 
-		ret += retval;
-		src += retval;
-		buf += retval;
-		count -= retval;
-	}
-	*ppos = src;
-
-	free_page((unsigned long) page);
-	return ret;
-}
-
-static ssize_t mem_write(struct file * file, const char __user *buf,
-			 size_t count, loff_t *ppos)
-{
-	int copied;
+	unsigned long addr = *ppos;
+	ssize_t copied;
 	char *page;
-	unsigned long dst = *ppos;
-	struct mm_struct *mm = file->private_data;
 
 	if (!mm)
 		return 0;
@@ -849,30 +812,58 @@ static ssize_t mem_write(struct file * file, const char __user *buf,
 		return -ENOMEM;
 
 	copied = 0;
-	while (count > 0) {
-		int this_len, retval;
+	if (!atomic_inc_not_zero(&mm->mm_users))
+		goto free;
 
-		this_len = (count > PAGE_SIZE) ? PAGE_SIZE : count;
-		if (copy_from_user(page, buf, this_len)) {
+	while (count > 0) {
+		int this_len = min_t(int, count, PAGE_SIZE);
+
+		if (write && copy_from_user(page, buf, this_len)) {
 			copied = -EFAULT;
 			break;
 		}
-		retval = access_remote_vm(mm, dst, page, this_len, 1);
-		if (!retval) {
+
+		this_len = access_remote_vm(mm, addr, page, this_len, write);
+		if (!this_len) {
 			if (!copied)
 				copied = -EIO;
 			break;
 		}
-		copied += retval;
-		buf += retval;
-		dst += retval;
-		count -= retval;			
-	}
-	*ppos = dst;
 
+		if (!write && copy_to_user(buf, page, this_len)) {
+			copied = -EFAULT;
+			break;
+		}
+
+		buf += this_len;
+		addr += this_len;
+		copied += this_len;
+		count -= this_len;
+	}
+	*ppos = addr;
+
+	mmput(mm);
+free:
 	free_page((unsigned long) page);
 	return copied;
 }
+
+static ssize_t mem_read(struct file *file, char __user *buf,
+			size_t count, loff_t *ppos)
+{
+	return mem_rw(file, buf, count, ppos, 0);
+}
+
+#define mem_write NULL
+
+#ifndef mem_write
+/* This is a security hazard */
+static ssize_t mem_write(struct file *file, const char __user *buf,
+			 size_t count, loff_t *ppos)
+{
+	return mem_rw(file, (char __user*)buf, count, ppos, 1);
+}
+#endif
 
 loff_t mem_lseek(struct file *file, loff_t offset, int orig)
 {
@@ -893,8 +884,8 @@ loff_t mem_lseek(struct file *file, loff_t offset, int orig)
 static int mem_release(struct inode *inode, struct file *file)
 {
 	struct mm_struct *mm = file->private_data;
-
-	mmput(mm);
+	if (mm)
+		mmdrop(mm);
 	return 0;
 }
 
@@ -1221,6 +1212,32 @@ static const struct file_operations proc_oom_score_adj_operations = {
 	.write		= oom_score_adj_write,
 	.llseek		= default_llseek,
 };
+
+#ifdef CONFIG_ANDROID
+static ssize_t oom_killed_read(struct file *file, char __user *buf,
+			       size_t count, loff_t *ppos)
+{
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+	char buffer[PROC_NUMBUF];
+	int oom_killed = 0;
+	unsigned long flags;
+	size_t len;
+
+	if (!task)
+		return -ESRCH;
+	if (lock_task_sighand(task, &flags)) {
+		oom_killed = sigismember(&task->pending.signal, SIGKILL);
+		unlock_task_sighand(task, &flags);
+	}
+	put_task_struct(task);
+	len = snprintf(buffer, sizeof(buffer), "%d\n", oom_killed);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static const struct file_operations proc_oom_killed_operations = {
+	.read		= oom_killed_read,
+};
+#endif
 
 #ifdef CONFIG_AUDITSYSCALL
 #define TMPBUFLEN 21
@@ -2822,6 +2839,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 	INF("oom_score",  S_IRUGO, proc_oom_score),
 	ANDROID("oom_adj",S_IRUGO|S_IWUSR, oom_adjust),
 	REG("oom_score_adj", S_IRUGO|S_IWUSR, proc_oom_score_adj_operations),
+#ifdef CONFIG_ANDROID
+	REG("oom_killed", S_IRUGO, proc_oom_killed_operations),
+#endif
 #ifdef CONFIG_AUDITSYSCALL
 	REG("loginuid",   S_IWUSR|S_IRUGO, proc_loginuid_operations),
 	REG("sessionid",  S_IRUGO, proc_sessionid_operations),
@@ -3167,6 +3187,9 @@ static const struct pid_entry tid_base_stuff[] = {
 	INF("oom_score", S_IRUGO, proc_oom_score),
 	REG("oom_adj",   S_IRUGO|S_IWUSR, proc_oom_adjust_operations),
 	REG("oom_score_adj", S_IRUGO|S_IWUSR, proc_oom_score_adj_operations),
+#ifdef CONFIG_ANDROID
+	REG("oom_killed", S_IRUGO, proc_oom_killed_operations),
+#endif
 #ifdef CONFIG_AUDITSYSCALL
 	REG("loginuid",  S_IWUSR|S_IRUGO, proc_loginuid_operations),
 	REG("sessionid",  S_IRUGO, proc_sessionid_operations),

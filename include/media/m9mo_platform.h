@@ -19,5 +19,7 @@ struct m9mo_platform_data {
 	/* ISP interrupt */
 	int (*config_isp_irq)(void);
 	int (*config_sambaz)(int);
+	int (*af_led_power)(int);
+	int (*power_on_off)(int);
 	int irq;
 };

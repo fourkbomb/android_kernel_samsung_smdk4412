@@ -323,6 +323,7 @@ static int __devexit exynos4_display_remove(struct platform_device *pdev)
 
 	devfreq_remove_device(data->devfreq);
 
+	kfree(exynos4_display_profile.qos_list);
 	kfree(data);
 
 	return 0;

@@ -287,7 +287,7 @@ void __init exynos4_map_io(void)
 	s3c_i2c2_setname("s3c2440-i2c");
 
 #ifdef CONFIG_S5P_DEV_ACE
-	s5p_ace_setname("exynos4-ace");
+	s5p_ace_setname("exynos-ace");
 #endif
 }
 
@@ -335,6 +335,14 @@ void __init exynos4_init_irq(void)
 			combiner_cascade_irq(irq, COMBINER_MAP(irq));
 		}
 	}
+	else if (soc_is_exynos4212()) {
+		for (irq = COMMON_COMBINER_NR; irq < DUAL_COMBINER_NR; irq++) {
+			combiner_init(irq, (void __iomem *)S5P_VA_COMBINER(irq),
+					COMBINER_IRQ(irq, 0));
+			combiner_cascade_irq(irq, COMBINER_MAP(irq));
+		}
+	}
+
 
 	/* The parameters of s5p_init_irq() are for VIC init.
 	 * Theses parameters should be NULL and 0 because EXYNOS4

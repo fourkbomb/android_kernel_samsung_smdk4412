@@ -14,13 +14,16 @@
 
 #include <linux/wakelock.h>
 
-#define SYNAPTICS_FW "/data/firmware/synaptics_fw"
+#define SYNAPTICS_FW "/sdcard/firmware/synaptics_fw"
+#define SYNAPTICS_FW2 "/sdcard/synaptics_fw.img"
 #define FULL_RAW_CAP_LOWER_LIMIT	1000
 #define FULL_RAW_CAP_UPPER_LIMIT	3000
 #define MAX_RX_SIZE		45
 #define MAX_TX_SIZE		29
 #define NOISEMITIGATION	0xb1
 #define ABS_POS_BIT		(0x1 << 3)
+#define IGNORE_RX_42	41
+#define IGNORE_RX_43	42
 
 enum REPORT_TYPE {
 	REPORT_TYPE_RESERVED = 1,

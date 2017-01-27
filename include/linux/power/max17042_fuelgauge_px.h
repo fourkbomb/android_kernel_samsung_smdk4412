@@ -12,6 +12,10 @@
 #ifndef _MAX17042_BATTERY_H
 #define _MAX17042_BATTERY_H
 
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+#include <linux/power_supply.h>
+#endif /* CONFIG_TARGET_LOCALE_KOR */
+
 /* Register address */
 #define STATUS_REG				0x00
 #define VALRT_THRESHOLD_REG	0x01
@@ -36,6 +40,10 @@
 #define REMCAP_AV_REG			0x1F
 #define FULLCAP_NOM_REG		0x23
 #define MISCCFG_REG				0x2B
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+#define FILTERCFG_REG			0x29
+#define CGAIN_REG				0x2E
+#endif /* CONFIG_TARGET_LOCALE_KOR */
 #define RCOMP_REG				0x38
 #define FSTAT_REG				0x3D
 #define DQACC_REG				0x45
@@ -53,6 +61,7 @@
 #define FG_CHECK_STATUS 6
 #define FG_VF_SOC 7
 #define FG_VOLTAGE_NOW 8
+#define FG_RAW_LEVEL 9
 
 #define LOW_BATT_COMP_RANGE_NUM	5
 #define LOW_BATT_COMP_LEVEL_NUM	2
@@ -62,10 +71,13 @@
 struct max17042_platform_data {
 	int sdi_capacity;
 	int sdi_vfcapacity;
+	int sdi_low_bat_comp_start_vol;
 	int atl_capacity;
 	int atl_vfcapacity;
-	int sdi_low_bat_comp_start_vol;
 	int atl_low_bat_comp_start_vol;
+	int byd_capacity;
+	int byd_vfcapacity;
+	int byd_low_bat_comp_start_vol;
 	int fuel_alert_line;
 
 	int (*check_jig_status) (void);
@@ -96,11 +108,15 @@ struct fuelgauge_info {
 	int low_batt_comp_cnt[LOW_BATT_COMP_RANGE_NUM][LOW_BATT_COMP_LEVEL_NUM];
 	int check_start_vol;
 	int low_batt_comp_flag;
+	int psoc;
 };
 
 struct max17042_chip {
 	struct i2c_client		*client;
 	struct max17042_platform_data	*pdata;
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+	struct power_supply battery;
+#endif /* CONFIG_TARGET_LOCALE_KOR */
 	struct fuelgauge_info	info;
 	struct mutex			fg_lock;
 };
@@ -152,7 +168,7 @@ struct max17042_chip {
 #define ATL_Range2_3_Slope		76
 #define ATL_Range1_1_Slope		0
 #define ATL_Range1_3_Slope		0
-#elif defined(CONFIG_MACH_P4NOTE)	/* P4W battery parameter */
+#elif defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) || defined(CONFIG_MACH_TAB3)	/* P4W battery parameter */
 /* Current range for P4W(not dependent on battery type */
 #define CURRENT_RANGE1	0
 #define CURRENT_RANGE2	-200
@@ -200,6 +216,27 @@ struct max17042_chip {
 #define ATL_Range2_3_Slope		111
 #define ATL_Range1_1_Slope		0
 #define ATL_Range1_3_Slope		0
+/* BYD type low battery compensation offset */
+#define BYD_Range5_1_Offset		3318
+#define BYD_Range5_3_Offset		3383
+#define BYD_Range4_1_Offset		3451
+#define BYD_Range4_3_Offset		3618
+#define BYD_Range3_1_Offset		3453
+#define BYD_Range3_3_Offset		3615
+#define BYD_Range2_1_Offset		3447
+#define BYD_Range2_3_Offset		3606
+#define BYD_Range1_1_Offset		3438
+#define BYD_Range1_3_Offset		3591
+#define BYD_Range5_1_Slope		0
+#define BYD_Range5_3_Slope		0
+#define BYD_Range4_1_Slope		53
+#define BYD_Range4_3_Slope		94
+#define BYD_Range3_1_Slope		54
+#define BYD_Range3_3_Slope		92
+#define BYD_Range2_1_Slope		45
+#define BYD_Range2_3_Slope		78
+#define BYD_Range1_1_Slope		0
+#define BYD_Range1_3_Slope		0
 #elif defined(CONFIG_MACH_P8) || defined(CONFIG_MACH_P8LTE)
 /* Current range for P8(not dependent on battery type */
 #define CURRENT_RANGE1	0
@@ -307,6 +344,7 @@ enum {
 	UNKNOWN_TYPE = 0,
 	SDI_BATTERY_TYPE,
 	ATL_BATTERY_TYPE,
+	BYD_BATTERY_TYPE,
 };
 
 #ifdef CONFIG_MACH_P8LTE
@@ -339,5 +377,5 @@ extern void fg_fullcharged_compensation(u32 is_recharging, u32 pre_update);
 extern void fg_check_vf_fullcap_range(void);
 extern int fg_check_cap_corruption(void);
 extern void fg_set_full_charged(void);
-
+extern void fg_reset_fullcap_in_fullcharge(void);
 #endif
