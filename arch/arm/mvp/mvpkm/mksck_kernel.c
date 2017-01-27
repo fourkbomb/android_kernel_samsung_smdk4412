@@ -1,7 +1,7 @@
 /*
  * Linux 2.6.32 and later Kernel module for VMware MVP Hypervisor Support
  *
- * Copyright (C) 2010-2013 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2012 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published by
@@ -213,7 +213,7 @@ Mksck_Init(void)
     */
    err = proto_register(&mksckProto, 1);
    if (err != 0) {
-      printk(KERN_ERR
+      printk(KERN_INFO
              "Mksck_Init: Cannot register MKSCK protocol, errno = %d.\n", err);
       return err;
    }
@@ -223,7 +223,7 @@ Mksck_Init(void)
     */
    err = sock_register(&mksckFamilyOps);
    if (err < 0) {
-      printk(KERN_ERR
+      printk(KERN_INFO
             "Mksck_Init: Could not register address family AF_MKSCK"
             " (errno = %d).\n", err);
       return err;
@@ -462,12 +462,12 @@ MksckBindGeneric(struct sock *sk,
    if (addr.vmId == MKSCK_VMID_UNDEF) {
       mksckPage = MksckPage_GetFromTgidIncRefc();
    } else {
-      printk(KERN_ERR "MksckBind: host bind called on vmid 0x%X\n", addr.vmId);
+      printk(KERN_WARNING "MksckBind: host bind called on vmid 0x%X\n", addr.vmId);
       mksckPage = MksckPage_GetFromVmIdIncRefc(addr.vmId);
    }
 
    if (mksckPage == NULL) {
-      printk(KERN_ERR "MksckBind: no mksckPage for vm 0x%X\n", addr.vmId);
+      printk(KERN_INFO "MksckBind: no mksckPage for vm 0x%X\n", addr.vmId);
       return -ENETUNREACH;
    }
    addr.vmId = mksckPage->vmId;
@@ -610,7 +610,7 @@ LockPeer(Mksck_Address addr, Mksck **peerMksckR)
    }
    if (!peerMksckPage->isGuest) {
       MksckPage_DecRefc(peerMksckPage);
-      printk(KERN_ERR "LockPeer: vmId %x does not belong to a guest!\n",
+      printk(KERN_INFO "LockPeer: vmId %x does not belong to a guest!\n",
              addr.vmId);
       return -ENETUNREACH;
    }
@@ -633,7 +633,7 @@ LockPeer(Mksck_Address addr, Mksck **peerMksckR)
       ATOMIC_ADDV(peerMksck->refCount, 1);
       *peerMksckR = peerMksck;
    } else {
-      printk(KERN_ERR "LockPeer: addr %x is not a defined socket!\n",
+      printk(KERN_INFO "LockPeer: addr %x is not a defined socket!\n",
              addr.addr);
       err = -ENETUNREACH;
    }
@@ -1162,10 +1162,10 @@ MksckPageDescToFd(struct socket *sock,
          goto endProcessingReleaseSock;
       }
 
-      mpdi = kmalloc(sizeof(MksckPageDescInfo) +
-                     pages*sizeof(Mksck_PageDesc), GFP_KERNEL);
-      if (!mpdi) {
-         retval = -ENOMEM;
+      mpdi = sock_kmalloc(newsk, sizeof(MksckPageDescInfo) +
+                          pages*sizeof(Mksck_PageDesc), GFP_KERNEL);
+      if (IS_ERR(mpdi)) {
+         retval = PTR_ERR(mpdi);
          release_sock(newsk);
          goto endProcessingReleaseSock;
       }
@@ -1203,16 +1203,17 @@ MksckPageDescToFd(struct socket *sock,
       sock_hold(sk); // keeps a reference to parent mk socket
       newsock->ops = &mksckPageDescOps;
 
-      mpdi = kmalloc(sizeof(MksckPageDescInfo) +
-                     pages*sizeof(Mksck_PageDesc), GFP_KERNEL);
-      if (!mpdi) {
-         retval = -ENOMEM;
+      mpdi = sock_kmalloc(newsk, sizeof(MksckPageDescInfo) +
+                          pages*sizeof(Mksck_PageDesc), GFP_KERNEL);
+      if (IS_ERR(mpdi)) {
+         retval = PTR_ERR(mpdi);
          goto endProcessingFreeNewSock;
       }
 
       sk->sk_user_data = sock_kmalloc(sk, sizeof(int), GFP_KERNEL);
-      if (sk->sk_user_data == NULL) {
-         retval = -ENOMEM;
+      if (IS_ERR(sk->sk_user_data)) {
+         retval = PTR_ERR(sk->sk_user_data);
+         sk->sk_user_data = NULL;
          goto endProcessingKFreeAndNewSock;
       }
 
@@ -1231,7 +1232,8 @@ MksckPageDescToFd(struct socket *sock,
       if (retval < 0) {
          sock_kfree_s(sk, sk->sk_user_data, sizeof(int));
          sk->sk_user_data = NULL;
-         kfree(mpdi);
+         sock_kfree_s(newsk, mpdi, sizeof(MksckPageDescInfo) +
+                      mpdi->pages*sizeof(Mksck_PageDesc));
          release_sock(newsk);
          sockfd_put(newsock);
          sock_release(newsock);
@@ -1258,7 +1260,8 @@ MksckPageDescToFd(struct socket *sock,
    return 0;
 
 endProcessingKFreeAndNewSock:
-   kfree(mpdi);
+   sock_kfree_s(newsk, mpdi, sizeof(MksckPageDescInfo) +
+                mpdi->pages*sizeof(Mksck_PageDesc));
 endProcessingFreeNewSock:
    release_sock(newsk);
    sock_release(newsock);
@@ -1266,7 +1269,8 @@ endProcessingFreeNewSock:
    return retval;
 
 endProcessingKFreeReleaseSock:
-   kfree(mpdi);
+   sock_kfree_s(newsk, mpdi, sizeof(MksckPageDescInfo) +
+                mpdi->pages*sizeof(Mksck_PageDesc));
    release_sock(newsk);
 endProcessingReleaseSock:
    release_sock(sk);
@@ -1289,7 +1293,8 @@ MksckPageDescSkDestruct(struct sock *sk)
       MksckPageDescInfo *next = mpdi->next;
       MksckPageDescManage(mpdi->descs, mpdi->pages,
                           MANAGE_DECREMENT);
-      kfree(mpdi);
+      sock_kfree_s(sk, mpdi, sizeof(MksckPageDescInfo) +
+                   mpdi->pages*sizeof(Mksck_PageDesc));
       mpdi = next;
    }
    if (sk->sk_user_data) {
@@ -1362,7 +1367,8 @@ MksckPageDescMMap(struct file *file,
       if (mpdi->mapCounts && !--mpdi->mapCounts) {
          MksckPageDescManage(mpdi->descs, mpdi->pages,
                              MANAGE_DECREMENT);
-         kfree(mpdi);
+         sock_kfree_s(sk, mpdi, sizeof(MksckPageDescInfo) +
+                      mpdi->pages*sizeof(Mksck_PageDesc));
          freed = 1;
       }
       mpdi = next;
@@ -2164,7 +2170,7 @@ MksckPage_GetFromTgidIncRefc(void)
    mksckPage->isGuest = false;
    mksckPage->vmHKVA  = 0;
    mksckPage->tgid    = task_tgid_vnr(current);
-   printk(KERN_WARNING "New host mksck page is allocated: idx %x, vmId %x, tgid %d\n",
+   printk(KERN_DEBUG "New host mksck page is allocated: idx %x, vmId %x, tgid %d\n",
           MKSCK_VMID2IDX(vmId), vmId, mksckPage->tgid);
 
    spin_unlock(&mksckPageListLock);
@@ -2196,7 +2202,7 @@ Mksck_WspInitialize(MvpkmVM *vm)
          err = -EMFILE;
          MksckPageRelease(mksckPage);
 
-         printk(KERN_ERR "Mksck_WspInitialize: Cannot allocate vmId\n");
+         printk(KERN_INFO "Mksck_WspInitialize: Cannot allocate vmId\n");
 
       } else {
          /*
@@ -2210,7 +2216,7 @@ Mksck_WspInitialize(MvpkmVM *vm)
 
          wsp->guestId = vmId;
 
-         printk(KERN_WARNING "New guest mksck page is allocated: idx %x, vmId %x\n",
+         printk(KERN_DEBUG "New guest mksck page is allocated: idx %x, vmId %x\n",
                 MKSCK_VMID2IDX(vmId), vmId);
 
          err = 0;
@@ -2357,7 +2363,7 @@ MksckPage_DecRefc(MksckPage *mksckPage)
             ASSERT(mksckPages[ii] == mksckPage);
             mksckPages[ii] = NULL;
             spin_unlock(&mksckPageListLock);
-            printk(KERN_WARNING "%s mksck page is released: idx %x, vmId %x, tgid %d\n",
+            printk(KERN_DEBUG "%s mksck page is released: idx %x, vmId %x, tgid %d\n",
                    mksckPage->isGuest?"Guest":"Host",
                    ii, mksckPage->vmId, mksckPage->tgid);
             MksckPageRelease(mksckPage);
@@ -2562,12 +2568,22 @@ static const struct file_operations mksckPageInfoFops = {
    .release = single_release,
 };
 
+static struct dentry *mksckPageDentry = NULL;
+
 void
-MksckPageInfo_Init(struct dentry *parent)
+MksckPageInfo_Init(void)
 {
-   debugfs_create_file("mksckPage",
-                       S_IROTH,
-                       parent,
-                       NULL,
-                       &mksckPageInfoFops);
+   mksckPageDentry = debugfs_create_file("mksckPage",
+                                         S_IROTH,
+                                         NULL,
+                                         NULL,
+                                         &mksckPageInfoFops);
+}
+
+void
+MksckPageInfo_Exit(void)
+{
+   if (mksckPageDentry) {
+      debugfs_remove(mksckPageDentry);
+   }
 }

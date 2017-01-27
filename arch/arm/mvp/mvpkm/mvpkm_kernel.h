@@ -1,7 +1,7 @@
 /*
  * Linux 2.6.32 and later Kernel module for VMware MVP Hypervisor Support
  *
- * Copyright (C) 2010-2013 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2012 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published by
@@ -71,16 +71,13 @@ struct MvpkmVM {
    struct rw_semaphore monThreadTaskSem;/*<  prevents monThreadTask from
                                              disappearing underneath us */
    struct task_struct *monThreadTask;
-   struct timer_list   balloonWDTimer;  /// Balloon watchdog timer
-   _Bool               balloonWDEnabled;/// Balloon watchdog enabled?
-   _Bool               watchdogTriggered;///< Did the watchdog hit a timeout?
+   struct timer_list balloonWDTimer;    /// Balloon watchdog timer
+   _Bool balloonWDEnabled;              /// Balloon watchdog enabled?
 };
 
 typedef struct MvpkmVM MvpkmVM;
 
 void Mvpkm_WakeGuest(MvpkmVM *vm, int why);
 struct kset *Mvpkm_FindVMNamedKSet(int vmID, const char *name);
-
-extern struct cpumask inMonitor;
 
 #endif

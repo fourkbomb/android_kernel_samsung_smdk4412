@@ -33,9 +33,7 @@
 #include <plat/cpu.h>
 
 #if defined(CONFIG_MACH_PX) || defined(CONFIG_MACH_Q1_BD) ||\
-	defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) ||\
-	defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_TAB3) ||\
-	defined(CONFIG_MACH_GC2PD)
+	defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_GC1)
 #include <mach/sec_debug.h>
 #endif
 
@@ -638,13 +636,6 @@ static int exynos_cpufreq_notifier_event(struct notifier_block *this,
 						exynos_info->pm_lock_idx);
 		if (ret < 0)
 			return NOTIFY_BAD;
-#elif defined(CONFIG_ARCH_EXYNOS4)
-		if (soc_is_exynos4212()) {
-			ret = exynos_cpufreq_upper_limit(DVFS_LOCK_ID_PM,
-					exynos_info->pm_lock_idx);
-			if (ret < 0)
-				return NOTIFY_BAD;
-		}
 #endif
 		exynos_cpufreq_disable = true;
 
@@ -668,9 +659,6 @@ static int exynos_cpufreq_notifier_event(struct notifier_block *this,
 		exynos_cpufreq_lock_free(DVFS_LOCK_ID_PM);
 #if defined(CONFIG_CPU_EXYNOS4210) || defined(CONFIG_SLP)
 		exynos_cpufreq_upper_limit_free(DVFS_LOCK_ID_PM);
-#elif defined(CONFIG_ARCH_EXYNOS4)
-		if (soc_is_exynos4212())
-			exynos_cpufreq_upper_limit_free(DVFS_LOCK_ID_PM);
 #endif
 		exynos_cpufreq_disable = false;
 		/* If current governor is userspace or performance or powersave,

@@ -77,8 +77,7 @@ struct sec_bat_platform_data {
 	unsigned int (*get_lpcharging_state) (void);
 	void (*no_bat_cb) (void);
 	void (*initial_check) (void);
-#if defined(CONFIG_TARGET_LOCALE_NAATT) || \
-	defined(CONFIG_TARGET_LOCALE_NAATT_TEMP)
+#if defined(CONFIG_TARGET_LOCALE_NAATT)
 	int adc_vf_channel;
 #endif
 };

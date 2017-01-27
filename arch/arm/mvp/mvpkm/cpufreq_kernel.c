@@ -1,7 +1,7 @@
 /*
  * Linux 2.6.32 and later Kernel module for VMware MVP Hypervisor Support
  *
- * Copyright (C) 2010-2013 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2012 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published by
@@ -28,19 +28,22 @@
 
 #include <linux/module.h>
 #include <linux/notifier.h>
+#include <linux/cpu.h>
 #include <linux/cpufreq.h>
+#include <linux/rwsem.h>
 #include <linux/smp.h>
 
 #include "mvp.h"
 #include "cpufreq_kernel.h"
-#include "mvpkm_kernel.h"
 #include "mvp_timer.h"
+
+DEFINE_PER_CPU(struct TscToRate64Cb, tscToRate64);
 
 
 /**
  * @brief Return current CPU frequency
  * @param cpu CPU number
- * @return CPU frequency in kHz, might be 0 (cpufreq)
+ * @return CPU frequency in Hz
  *
  * When CPU_FREQ is not available, it uses hardcoded frequencies.
  */
@@ -51,6 +54,10 @@ GetCpuFrequency(unsigned int cpu)
 
 #ifdef CONFIG_CPU_FREQ
    counterKHZ = cpufreq_quick_get(cpu);
+   if (counterKHZ == 0) {
+      counterKHZ = cpufreq_get(cpu);
+      FATAL_IF(counterKHZ == 0);
+   }
 #elif defined(MVP_HOST_BOARD_ve)
    /**
     * @knownjira{MVP-143}
@@ -61,8 +68,7 @@ GetCpuFrequency(unsigned int cpu)
     */
    KNOWN_BUG(MVP-143);
    counterKHZ = 125e3;
-
-   printk_once(KERN_INFO "mvpkm: CPU_FREQ not available, forcing TSC to %d kHz\n", counterKHZ);
+   printk(KERN_INFO "mvpkm: CPU_FREQ not available, forcing TSC to %d KHz\n", counterKHZ);
 #elif defined(MVP_HOST_BOARD_panda)
    counterKHZ = 1e6;
 #else
@@ -73,12 +79,12 @@ GetCpuFrequency(unsigned int cpu)
 #error "host TSC frequency unknown."
 #endif
 
-   return counterKHZ;
+   return counterKHZ * 1000;
 }
 
 /**
  * @brief Compute TSC to RATE64 ratio
- * @param cpuFreq TSC frequency in kHz
+ * @param cpuFreq TSC frequency in Hz
  * @param[out] ttr tscToRate64 pointer
  */
 static void
@@ -149,9 +155,6 @@ TscToRate64(uint32 cpuFreq, struct TscToRate64Cb *ttr)
     *
     */
 
-   /* cpuFreq comes in kHz */
-   cpuFreq *= 1000;
-
    /* CLZ(MVP_TIMER_RATE64) is optimized by compiler in a constant */
    shift = 31 + CLZ(MVP_TIMER_RATE64) - CLZ(cpuFreq);
    mult = MVP_TIMER_RATE64;
@@ -167,42 +170,16 @@ TscToRate64(uint32 cpuFreq, struct TscToRate64Cb *ttr)
 }
 
 /**
- * @brief Compute a new TSC to rate64 ratio if CPU frequency changed
- * @param[in,out] freq Pointer to previous CPU frequency in kHz
- * @param[in,out] ttr Pointer to ratio values, set on change
- * @return 1 if ratio has changed, else 0
- */
-int
-CpuFreqUpdate(unsigned int *freq, struct TscToRate64Cb *ttr)
-{
-   unsigned int cur = GetCpuFrequency(smp_processor_id());
-   int ret = (cur != *freq);
-
-   if (ret) {
-      if (cur) {
-         TscToRate64(cur, ttr);
-      } else {
-         /*
-          * Note that cpufreq_quick_get(cpu) can return 0 while cpufreq is
-          * not yet ready on that core. This will make monitor run with a
-          * degraded time for few ms.
-          */
-         ttr->mult = 1;
-         ttr->shift = 64;
-      }
-      *freq = cur;
-   }
-
-   return ret;
-}
-
-/**
- * @brief Nop function
- * @param info Ignored
+ * @brief Compute TSC to RATE64 ratio for the current cpu
+ * @param info TSC frequency in Hz
+ * @sideeffect Update local cpu tscToRate64
  */
 static void
-CpuFreqNop(void *info)
+TscToRate64IPI(void *info)
 {
+   uint32 cpuFreq = (uint32)info;
+
+   TscToRate64(cpuFreq, &__get_cpu_var(tscToRate64));
 }
 
 /**
@@ -225,16 +202,23 @@ CpuFreqNotifier(struct notifier_block *nb,
                 void *data)
 {
    struct cpufreq_freqs *freq = data;
+   bool updateRequired;
 
-   /*
-    * Call CpuFreqNop() on the correct CPU core to force any currently running
-    * vCPU's to worldswitch back to the host and update TSC to rate64 ratio
-    * on next execution.
+   /* ASSUMPTION: Only freq. increases can fail and that it is ok to tell the
+    * guest a higher frequency than it really is but not the other way around
+    * as that just leads to time "jumping" forward in the guest not backwards.
     */
-   if (freq->old != freq->new &&
-       val == CPUFREQ_POSTCHANGE &&
-       cpumask_test_cpu(freq->cpu, &inMonitor)) {
-      smp_call_function_single(freq->cpu, CpuFreqNop, NULL, false);
+   updateRequired = (val == CPUFREQ_PRECHANGE && freq->new > freq->old) ||
+                    (val == CPUFREQ_POSTCHANGE && freq->new < freq->old);
+
+   /* Call TscToRate64() on the correct CPU core so that locking is not
+    * required.  This also has the side-effect of forcing any currently running
+    * vCPU's to worldswitch back to the host and correctly update the world
+    * switch page.
+    */
+   if (updateRequired) {
+      uint32 hz = freq->new * 1000;
+      smp_call_function_single(freq->cpu, TscToRate64IPI, (void *)hz, false);
    }
 
    return NOTIFY_OK;
@@ -248,17 +232,68 @@ static struct notifier_block cpuFreqNotifierBlock = {
 };
 
 /**
+ * @brief Handle cpuUp notifications.
+ * @param nb Notifier block
+ * @param action Notified action, e.g., CPU_ONLINE
+ * @param hcpu cpu no
+ * @return NOTIFY_OK
+ */
+static int
+CpuUpNotifier(struct notifier_block *nb,
+              unsigned long action,
+              void *hcpu)
+{
+   long cpu = (long)hcpu;
+
+   switch (action) {
+      case CPU_ONLINE:
+         /* The new CPU core is not yet executing normal tasks, so it is safe
+          * to update it's scaling factors from a different core. */
+         TscToRate64(GetCpuFrequency(cpu), &per_cpu(tscToRate64, cpu));
+         break;
+      default:
+         /*
+          * Ignore all other action notifications,
+          * such as CPU_UP_PREPARE, CPU_UP_CANCELED,
+          * CPU_DOWN_PREPARE, CPU_DOWN_FAILED,
+          * CPU_DYING, CPU_DEAD, CPU_POST_DEAD, etc.
+          * as they are irrelevant here.
+          */
+         break;
+   }
+
+   return NOTIFY_OK;
+}
+
+/**
+ * @brief Notifier block for cpus going online
+ */
+static struct notifier_block cpuUpNotifierBlock = {
+   .notifier_call = CpuUpNotifier
+};
+
+/**
  * @brief Initialize TSC ratio and register cpufreq transitions.
  */
 void
 CpuFreq_Init(void)
 {
    int ret;
+   int cpu;
 
    /* register callback on frequency change */
    ret = cpufreq_register_notifier(&cpuFreqNotifierBlock,
                                    CPUFREQ_TRANSITION_NOTIFIER);
    FATAL_IF(ret < 0);
+
+   /* register callback on cpu core online */
+   ret = register_cpu_notifier(&cpuUpNotifierBlock);
+   FATAL_IF(ret < 0);
+
+   /* Make sure that things are correctly initialized. */
+   for_each_online_cpu(cpu) {
+      TscToRate64(GetCpuFrequency(cpu), &per_cpu(tscToRate64, cpu));
+   }
 }
 
 /**
@@ -269,4 +304,5 @@ CpuFreq_Exit(void)
 {
    cpufreq_unregister_notifier(&cpuFreqNotifierBlock,
                                CPUFREQ_TRANSITION_NOTIFIER);
+   unregister_cpu_notifier(&cpuUpNotifierBlock);
 }

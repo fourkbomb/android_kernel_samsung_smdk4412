@@ -36,22 +36,15 @@
 #if defined(CONFIG_STMPE811_ADC)
 #define SEC_JACK_ADC_CH		4
 #else
-
-#if defined(CONFIG_MACH_TAB3)
-#define SEC_JACK_ADC_CH		0
-#else
 #define SEC_JACK_ADC_CH		3
 #endif
-
-#endif
-
 #define SEC_JACK_SAMPLE_SIZE	5
 
 #define MAX_ZONE_LIMIT		10
 /* keep this value if you support double-pressed concept */
 #if defined(CONFIG_TARGET_LOCALE_KOR)
 #define SEND_KEY_CHECK_TIME_MS	20		/* 20ms - GB VOC in KOR*/
-#elif defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE)
+#elif defined(CONFIG_MACH_Q1_BD)
 /* 27ms, total delay is approximately double more
    because hrtimer is called twice by gpio input driver,
    new sec spec total delay is 60ms +/-10ms */
@@ -62,8 +55,8 @@
 #define WAKE_LOCK_TIME		(HZ * 5)	/* 5 sec */
 #define EAR_CHECK_LOOP_CNT	10
 
-#if defined(CONFIG_MACH_PX) || defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) \
-	|| defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_TAB3)
+#if defined(CONFIG_MACH_PX) || defined(CONFIG_MACH_P4NOTE) \
+	|| defined(CONFIG_MACH_GC1)
 #define JACK_CLASS_NAME "audio"
 #define JACK_DEV_NAME "earjack"
 #else
@@ -333,11 +326,7 @@ static void determine_jack_type(struct sec_jack_info *hi)
 	while (gpio_get_value(pdata->det_gpio) ^ npolarity) {
 		adc = sec_jack_get_adc_data(hi->padc);
 
-#if defined(CONFIG_TARGET_LOCALE_KOR)
-		pr_info("%s: adc = %d\n", __func__, adc);
-#else
 		pr_debug("%s: adc = %d\n", __func__, adc);
-#endif
 
 		if (adc < 0)
 			break;
@@ -498,8 +487,8 @@ static ssize_t select_jack_store(struct device *dev,
 	return size;
 }
 
-#if defined(CONFIG_MACH_PX) || defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) \
-	|| defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_TAB3)
+#if defined(CONFIG_MACH_PX) || defined(CONFIG_MACH_P4NOTE) \
+	|| defined(CONFIG_MACH_GC1)
 static ssize_t earjack_key_state_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -684,8 +673,8 @@ static int sec_jack_probe(struct platform_device *pdev)
 		pr_err("Failed to create device file(%s)!\n",
 			dev_attr_reselect_jack.attr.name);
 
-#if defined(CONFIG_MACH_PX) || defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) \
-	|| defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_TAB3)
+#if defined(CONFIG_MACH_PX) || defined(CONFIG_MACH_P4NOTE) \
+	|| defined(CONFIG_MACH_GC1)
 	if (device_create_file(jack_dev, &dev_attr_key_state) < 0)
 		pr_err("Failed to create device file (%s)!\n",
 			dev_attr_key_state.attr.name);
@@ -717,10 +706,6 @@ static int sec_jack_probe(struct platform_device *pdev)
 		pr_err("%s : Failed to register_handler\n", __func__);
 		goto err_register_input_handler;
 	}
-#if defined(CONFIG_MACH_TAB3)
-	if (pdata->send_end_active_high == true)
-		sec_jack_key_info.flags = 1;
-#endif
 	ret = request_threaded_irq(hi->det_irq, NULL,
 				   sec_jack_detect_irq_thread,
 				   IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |

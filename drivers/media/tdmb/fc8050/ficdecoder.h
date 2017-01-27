@@ -61,7 +61,6 @@ struct esbinfo_t {
 	u8	flag;
 	u16	eid;
 	u8	label[32];
-	u8	ecc;
 };
 
 struct service_info_t {
@@ -77,7 +76,6 @@ struct service_info_t {
 	u8	nscps;
 	u8	label[32];
 
-	u8  scids;
 	u8  num_of_user_appl;
 	u16 user_appl_type[MAX_USER_APPL_NUM];
 	u8  user_appl_length[MAX_USER_APPL_NUM];

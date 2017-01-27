@@ -1,7 +1,7 @@
 /*
  * Linux 2.6.32 and later Kernel module for VMware MVP Guest Communications
  *
- * Copyright (C) 2010-2013 VMware, Inc. All rights reserved.
+ * Copyright (C) 2010-2012 VMware, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published by
@@ -731,7 +731,6 @@ CommTransp_EnqueueReset(CommTransp transp)
  * @param transp handle to the transport object
  * @param buf data to enqueue
  * @param bufLen number of bytes to enqueue
- * @param kern != 0 if copying kernel data
  * @return number of bytes enqueued on success, <0 otherwise. see qp.h
  *      for error codes
  */
@@ -739,15 +738,14 @@ CommTransp_EnqueueReset(CommTransp transp)
 int
 CommTransp_EnqueueSegment(CommTransp transp,
                           const void *buf,
-                          unsigned int bufLen,
-                          int kern)
+                          unsigned int bufLen)
 {
    int rc;
 
    if (!transp) {
       return -1;
    }
-   rc = QP_EnqueueSegment(transp->qp, (void*)buf, bufLen, kern);
+   rc = QP_EnqueueSegment(transp->qp, (void*)buf, bufLen);
    if (rc >= 0) {
       transp->writeSize += (unsigned int)rc;
    } else {
@@ -801,7 +799,6 @@ CommTransp_EnqueueCommit(CommTransp transp)
             TranspTablePutNF(transp);
          }
       }
-      rc = 0;
    } else {
       rc = -1;
    }
@@ -849,23 +846,21 @@ CommTransp_DequeueReset(CommTransp transp)
  * @param transp handle to the transport object
  * @param[out] buf buffer to copy to
  * @param bufLen number of bytes to dequeue
- * @param kern != 0 if copying kernel data
  * @return number of bytes dequeued on success, <0 otherwise,
  *      see qp.h for error codes
  */
 
 int
 CommTransp_DequeueSegment(CommTransp transp,
-                          void *buf,
-                          unsigned bufLen,
-                          int kern)
+                           void *buf,
+                           unsigned bufLen)
 {
    int rc;
 
    if (!transp) {
       return -1;
    }
-   rc = QP_DequeueSegment(transp->qp, buf, bufLen, kern);
+   rc = QP_DequeueSegment(transp->qp, buf, bufLen);
    if (rc >= 0) {
       transp->readSize += (unsigned int)rc;
    } else {
@@ -890,7 +885,6 @@ CommTransp_DequeueCommit(CommTransp transp)
    if (!transp) {
       return -1;
    }
-
    rc = QP_DequeueCommit(transp->qp);
    if (rc >= 0) {
       int readable = CommTransp_DequeueSpace(transp);
@@ -913,7 +907,6 @@ CommTransp_DequeueCommit(CommTransp transp)
             TranspTablePut(transp);
          }
       }
-      rc = 0;
    } else {
       rc = -1;
    }
@@ -949,4 +942,3 @@ CommTransp_Notify(const CommTranspID *notificationCenterID,
    QP_Notify(&args);
    return 0;
 }
-

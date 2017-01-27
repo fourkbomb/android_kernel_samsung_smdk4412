@@ -28,9 +28,6 @@
 #ifndef __LINUX_MFD_MAX77693_H
 #define __LINUX_MFD_MAX77693_H
 
-#if defined(CONFIG_CHARGER_MAX77693_BAT)
-#include <linux/battery/sec_charger.h>
-#endif
 #include <linux/regulator/consumer.h>
 
 enum {
@@ -122,10 +119,6 @@ struct max77693_platform_data {
 	/* charger data */
 	struct max77693_charger_platform_data *charger_data;
 #endif
-#if defined(CONFIG_CHARGER_MAX77693_BAT)
-	/* charger data */
-	sec_battery_platform_data_t *charger_data;
-#endif
 };
 
 enum cable_type_muic;
@@ -156,5 +149,9 @@ struct max77693_muic_data {
 #if defined(CONFIG_MACH_M0_CTC)
 extern int max7693_muic_cp_usb_state(void);
 #endif
+
+#if defined(CONFIG_MUIC_MAX77693_SUPPORT_OTG_AUDIO_DOCK)
+extern void max77693_muic_attach_audio_dock(void);
+#endif /* CONFIG_MUIC_MAX77693_SUPPORT_OTG_AUDIO_DOCK */
 
 #endif				/* __LINUX_MFD_MAX77693_H */

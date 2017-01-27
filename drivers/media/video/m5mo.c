@@ -174,6 +174,8 @@ static struct m5mo_control m5mo_ctrls[] = {
 	},
 };
 
+struct class *camera_class;
+
 static inline struct m5mo_state *to_state(struct v4l2_subdev *sd)
 {
 	return container_of(sd, struct m5mo_state, sd);
@@ -847,7 +849,7 @@ static int m5mo_check_fw(struct v4l2_subdev *sd)
 {
 	struct m5mo_state *state = to_state(sd);
 	u8 sensor_ver[M5MO_FW_VER_LEN] = "FAILED Fujitsu M5MOLS";
-	u8 phone_ver[M5MO_FW_VER_LEN] = DEFAULT_PHONE_FW_VER;
+	u8 phone_ver[M5MO_FW_VER_LEN] = "FAILED Fujitsu M5MOLS";
 	int af_cal_h = 0, af_cal_l = 0;
 	int rg_cal_h = 0, rg_cal_l = 0;
 	int bg_cal_h = 0, bg_cal_l = 0;
@@ -2933,8 +2935,8 @@ static int __devinit m5mo_probe(struct i2c_client *client,
 	state->dbg_level = CAM_DEBUG;
 #endif
 	if (state->m5mo_dev == NULL) {
-		state->m5mo_dev =  device_create(camera_class, NULL,
-					MKDEV(CAM_MAJOR, 0), NULL, "rear");
+		state->m5mo_dev =
+		    device_create(camera_class, NULL, 0, NULL, "rear");
 		if (IS_ERR(state->m5mo_dev)) {
 			cam_err("failed to create device m5mo_dev!\n");
 		} else {
@@ -2981,7 +2983,7 @@ static int __devexit m5mo_remove(struct i2c_client *client)
 
 	device_remove_file(state->m5mo_dev, &dev_attr_rear_camtype);
 	device_remove_file(state->m5mo_dev, &dev_attr_rear_camfw);
-	device_destroy(camera_class, state->m5mo_dev->devt);
+	device_destroy(camera_class, 0);
 	state->m5mo_dev = NULL;
 
 	if (state->isp.irq > 0)
@@ -3012,6 +3014,9 @@ static struct i2c_driver m5mo_i2c_driver = {
 
 static int __init m5mo_mod_init(void)
 {
+	camera_class = class_create(THIS_MODULE, "camera");
+	if (IS_ERR(camera_class))
+		pr_err("Failed to create class(camera)!\n");
 	return i2c_add_driver(&m5mo_i2c_driver);
 }
 

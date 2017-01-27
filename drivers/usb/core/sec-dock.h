@@ -9,6 +9,9 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
+#if defined(CONFIG_MUIC_MAX77693_SUPPORT_OTG_AUDIO_DOCK)
+#include <linux/mfd/max77693.h>
+#endif /* CONFIG_MUIC_MAX77693_SUPPORT_OTG_AUDIO_DOCK */
 #include <linux/power_supply.h>
 
 #define PSY_CHG_NAME "max77693-charger"
@@ -23,16 +26,14 @@ static struct usb_device_id battery_notify_exception_table[] = {
 { USB_DEVICE(0x1519, 0x0020), }, /* HSIC Device */
 { USB_DEVICE(0x05c6, 0x904c), }, /* Qualcomm modem */
 { USB_DEVICE(0x05c6, 0x9008), }, /* Qualcomm modem */
-{ USB_DEVICE(0x08bb, 0x2704), }, /* TI USB Audio DAC 1 */
-{ USB_DEVICE(0x08bb, 0x27c4), }, /* TI USB Audio DAC 2 */
+{ USB_DEVICE(0x08bb, 0x27c4), }, /* TI USB Audio DAC */
 { }	/* Terminating entry */
 };
 
 #if defined(CONFIG_MUIC_MAX77693_SUPPORT_OTG_AUDIO_DOCK)
 static struct usb_device_id audio_dock_table[] = {
 /* add exception table list */
-{ USB_DEVICE(0x04e8, 0x1220), }, /* Previous Samsung Audio Dock */
-{ USB_DEVICE(0x04e8, 0x2081), }, /* Samsung Audio Dock */
+{ USB_DEVICE(0x04e8, 0x1220), }, /* Samsung Audio Dock */
 { USB_DEVICE(0x08bb, 0x27c4), }, /* TI USB Audio DAC */
 { }	/* Terminating entry */
 };
@@ -47,6 +48,7 @@ static void call_audiodock_notify(struct usb_device *dev)
 		    id->idVendor == le16_to_cpu(dev->descriptor.idVendor) &&
 		    id->idProduct == le16_to_cpu(dev->descriptor.idProduct)) {
 			dev_info(&dev->dev, "Audio Dock is connected!\n");
+			max77693_muic_attach_audio_dock();
 			return;
 		}
 	}
@@ -81,9 +83,7 @@ static int call_battery_notify(struct usb_device *dev, bool bOnOff)
 
 	/* Smart Dock hub must be skipped */
 	if ((le16_to_cpu(dev->descriptor.idVendor) == 0x1a40 &&
-	     le16_to_cpu(dev->descriptor.idProduct) == 0x0101) ||
-	     (le16_to_cpu(dev->descriptor.idVendor) == 0x0424 &&
-	     le16_to_cpu(dev->descriptor.idProduct) == 0x2514)) {
+	     le16_to_cpu(dev->descriptor.idProduct) == 0x0101)) {
 		if (bOnOff)
 			is_smartdock = 1;
 		else

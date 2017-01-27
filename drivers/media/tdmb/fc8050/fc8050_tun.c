@@ -34,9 +34,7 @@
 #include "fci_hal.h"
 #include "fc8050_regs.h"
 
-#if !defined(CONFIG_TDMB_EBI)
 #define FEATURE_TUNER_BURST_MODE
-#endif
 
 static int fc8050_write(HANDLE hDevice, u8 addr, u8 data)
 {

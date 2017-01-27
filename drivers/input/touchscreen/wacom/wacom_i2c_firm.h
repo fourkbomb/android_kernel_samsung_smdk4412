@@ -17,9 +17,6 @@
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#ifndef _LINUX_WACOM_I2C_FIRM_H
-#define _LINUX_WACOM_I2C_FIRM_H
-
 extern const unsigned int Binary_nLength;
 extern const unsigned char Mpu_type;
 extern unsigned int Firmware_version_of_file;
@@ -31,4 +28,3 @@ void wacom_i2c_init_firm_data(void);
 void wacom_i2c_set_firm_data(unsigned char *Binary_new);
 int wacom_i2c_get_digitizer_type(void);
 
-#endif /* _LINUX_WACOM_I2C_FIRM_H */

@@ -41,8 +41,6 @@ obj-$(CONFIG_CONNECTOR)		+= connector/
 obj-$(CONFIG_FB_I810)           += video/i810/
 obj-$(CONFIG_FB_INTEL)          += video/intelfb/
 
-obj-$(CONFIG_USE_MUIC)		+= muic/
-
 obj-$(CONFIG_PARPORT)		+= parport/
 obj-y				+= base/ block/ misc/ mfd/ nfc/
 obj-$(CONFIG_NUBUS)		+= nubus/
@@ -129,7 +127,7 @@ obj-y				+= ieee802154/
 #common clk code
 obj-y				+= clk/
 obj-$(CONFIG_HWSPINLOCK)	+= hwspinlock/
-obj-$(CONFIG_ANDROID_TIMED_OUTPUT)		+= motor/
+obj-$(CONFIG_VIBETONZ)		+= motor/
 
 obj-$(CONFIG_SENSORS_CORE)	+= sensor/
 obj-$(CONFIG_SENSORS_SSP)	+= sensorhub/
@@ -143,7 +141,6 @@ obj-$(CONFIG_BARCODE_EMUL)	+= barcode_emul/
 obj-$(CONFIG_EXTCON)		+= extcon/
 # Secure OS Mobicore
 obj-$(CONFIG_MOBICORE_SUPPORT)	+= gud/
-obj-$(CONFIG_MOBICORE_DRIVER)	+= gud20/
 
 obj-$(CONFIG_IOMMU_SUPPORT)	+= iommu/
 
@@ -155,5 +152,3 @@ ifeq (1, $(shell if [ -d ./drivers/exfat ]; then echo 1; fi))
 obj-y	+= exfat/
 endif
 
-obj-$(CONFIG_J4FS)		+= j4fs/
-obj-$(CONFIG_ICE4_FPGA)		+= ice4_fpga/

@@ -47,15 +47,12 @@ struct adc_table_data {
 int convert_adc(int adc_data, int channel);
 #endif
 
-#if defined(CONFIG_STMPE811_ADC) && !defined(CONFIG_MACH_TAB3)
+#ifdef CONFIG_STMPE811_ADC
 extern struct stmpe811_platform_data stmpe811_pdata;
 #endif
 
 #ifdef CONFIG_SEC_THERMISTOR
 extern struct platform_device sec_device_thermistor;
-#endif
-#ifdef CONFIG_SEC_SUBTHERMISTOR
-extern struct platform_device sec_device_subthermistor;
 #endif
 
 #endif /* __MIDAS_THERMISTOR_H */

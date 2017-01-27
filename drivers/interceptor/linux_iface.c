@@ -33,8 +33,7 @@ int
 ssh_interceptor_notifier_callback(struct notifier_block *block,
                                   unsigned long type, void *arg)
 {
-  if (ssh_interceptor_context != NULL
-      && ssh_interceptor_context->iface_notifiers_installed == TRUE)
+  if (ssh_interceptor_context != NULL)
     ssh_interceptor_receive_ifaces(ssh_interceptor_context);
 
   return NOTIFY_OK;
@@ -836,8 +835,6 @@ void ssh_interceptor_iface_uninit(SshInterceptor interceptor)
 {
   if (interceptor->iface_notifiers_installed)
     {
-      interceptor->iface_notifiers_installed = FALSE;
-
       local_bh_enable();
 
       /* Unregister notifier callback */
@@ -861,4 +858,6 @@ void ssh_interceptor_iface_uninit(SshInterceptor interceptor)
      Sleep for a while to decrease the possibility of the bug causing
      trouble (crash during module unloading). */
   mdelay(500);
+
+  interceptor->iface_notifiers_installed = FALSE;
 }

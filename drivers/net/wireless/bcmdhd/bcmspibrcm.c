@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: bcmspibrcm.c 373329 2012-12-07 04:46:09Z $
+ * $Id: bcmspibrcm.c 354197 2012-08-30 09:05:59Z $
  */
 
 #define HSMODE
@@ -94,18 +94,6 @@ uint8	spi_inbuf[SPI_MAX_PKT_LEN];
 #define BUF2_PKT_LEN	128
 uint8	spi_outbuf2[BUF2_PKT_LEN];
 uint8	spi_inbuf2[BUF2_PKT_LEN];
-#ifdef BCMSPI_ANDROID
-uint *dhd_spi_lockcount = NULL;
-#endif /* BCMSPI_ANDROID */
-
-#if !(defined(SPI_PIO_RW_BIGENDIAN) && defined(SPI_PIO_32BIT_RW))
-#define SPISWAP_WD4(x) bcmswap32(x);
-#define SPISWAP_WD2(x) (bcmswap16(x & 0xffff)) | \
-						(bcmswap16((x & 0xffff0000) >> 16) << 16);
-#else
-#define SPISWAP_WD4(x) x;
-#define SPISWAP_WD2(x) bcmswap32by16(x);
-#endif
 
 /* Prototypes */
 static bool bcmspi_test_card(sdioh_info_t *sd);
@@ -167,10 +155,6 @@ sdioh_attach(osl_t *osh, void *bar0, uint irq)
 	 */
 	sd->wordlen = 2;
 
-#ifdef BCMSPI_ANDROID
-	dhd_spi_lockcount = &sd->lockcount;
-#endif /* BCMSPI_ANDROID */
-
 #ifndef BCMSPI_ANDROID
 	if (!spi_hw_attach(sd)) {
 		sd_err(("%s: spi_hw_attach() failed\n", __FUNCTION__));
@@ -216,9 +200,6 @@ sdioh_detach(osl_t *osh, sdioh_info_t *sd)
 		spi_hw_detach(sd);
 #endif /* !BCMSPI_ANDROID */
 		spi_osfree(sd);
-#ifdef BCMSPI_ANDROID
-		dhd_spi_lockcount = NULL;
-#endif /* !BCMSPI_ANDROID */
 		MFREE(sd->osh, sd, sizeof(sdioh_info_t));
 	}
 	return SDIOH_API_RC_SUCCESS;
@@ -228,24 +209,24 @@ sdioh_detach(osl_t *osh, sdioh_info_t *sd)
 extern SDIOH_API_RC
 sdioh_interrupt_register(sdioh_info_t *sd, sdioh_cb_fn_t fn, void *argh)
 {
+#ifndef BCMSPI_ANDROID
 	sd_trace(("%s: Entering\n", __FUNCTION__));
-#if !defined(OOB_INTR_ONLY)
 	sd->intr_handler = fn;
 	sd->intr_handler_arg = argh;
 	sd->intr_handler_valid = TRUE;
-#endif /* !defined(OOB_INTR_ONLY) */
+#endif /* !BCMSPI_ANDROID */
 	return SDIOH_API_RC_SUCCESS;
 }
 
 extern SDIOH_API_RC
 sdioh_interrupt_deregister(sdioh_info_t *sd)
 {
+#ifndef BCMSPI_ANDROID
 	sd_trace(("%s: Entering\n", __FUNCTION__));
-#if !defined(OOB_INTR_ONLY)
 	sd->intr_handler_valid = FALSE;
 	sd->intr_handler = NULL;
 	sd->intr_handler_arg = NULL;
-#endif /* !defined(OOB_INTR_ONLY) */
+#endif /* !BCMSPI_ANDROID */
 	return SDIOH_API_RC_SUCCESS;
 }
 
@@ -801,11 +782,12 @@ bcmspi_card_byterewrite(sdioh_info_t *sd, int func, uint32 regaddr, uint8 byte)
 
 	/* Start by copying command in the spi-outbuffer */
 	if (sd->wordlen == 4) { /* 32bit spid */
-		*(uint32 *)spi_outbuf2 = SPISWAP_WD4(cmd_arg);
+		*(uint32 *)spi_outbuf2 = bcmswap32(cmd_arg);
 		if (datalen & 0x3)
 			datalen += (4 - (datalen & 0x3));
 	} else if (sd->wordlen == 2) { /* 16bit spid */
-		*(uint32 *)spi_outbuf2 = SPISWAP_WD2(cmd_arg);
+		*(uint16 *)spi_outbuf2 = bcmswap16(cmd_arg & 0xffff);
+		*(uint16 *)&spi_outbuf2[2] = bcmswap16((cmd_arg & 0xffff0000) >> 16);
 		if (datalen & 0x1)
 			datalen++;
 	} else {
@@ -817,9 +799,11 @@ bcmspi_card_byterewrite(sdioh_info_t *sd, int func, uint32 regaddr, uint8 byte)
 	/* for Write, put the data into the output buffer  */
 	if (datalen != 0) {
 			if (sd->wordlen == 4) { /* 32bit spid */
-				*(uint32 *)&spi_outbuf2[CMDLEN] = SPISWAP_WD4(byte);
+				*(uint32 *)&spi_outbuf2[CMDLEN] = bcmswap32(byte);
 			} else if (sd->wordlen == 2) { /* 16bit spid */
-				*(uint32 *)&spi_outbuf2[CMDLEN] = SPISWAP_WD2(byte);
+				*(uint16 *)&spi_outbuf2[CMDLEN] = bcmswap16(byte & 0xffff);
+				*(uint16 *)&spi_outbuf2[CMDLEN + 2] =
+					bcmswap16((byte & 0xffff0000) >> 16);
 			}
 	}
 
@@ -830,9 +814,10 @@ bcmspi_card_byterewrite(sdioh_info_t *sd, int func, uint32 regaddr, uint8 byte)
 
 	/* Last 4bytes are dstatus.  Device is configured to return status bits. */
 	if (sd->wordlen == 4) { /* 32bit spid */
-		sd->card_dstatus = SPISWAP_WD4(*(uint32 *)&spi_inbuf2[datalen + CMDLEN ]);
+		sd->card_dstatus = bcmswap32(*(uint32 *)&spi_inbuf2[datalen + CMDLEN ]);
 	} else if (sd->wordlen == 2) { /* 16bit spid */
-		sd->card_dstatus = SPISWAP_WD2(*(uint32 *)&spi_inbuf2[datalen + CMDLEN ]);
+		sd->card_dstatus = (bcmswap16(*(uint16 *)&spi_inbuf2[datalen + CMDLEN ]) |
+		                   (bcmswap16(*(uint16 *)&spi_inbuf2[datalen + CMDLEN + 2]) << 16));
 	} else {
 		sd_err(("%s: Host is %d bit machine, could not read SPI dstatus.\n",
 		        __FUNCTION__, 8 * sd->wordlen));
@@ -896,9 +881,10 @@ bcmspi_resync_f1(sdioh_info_t *sd)
 
 	/* Last 4bytes are dstatus.  Device is configured to return status bits. */
 	if (sd->wordlen == 4) { /* 32bit spid */
-		sd->card_dstatus = SPISWAP_WD4(*(uint32 *)&spi_inbuf2[datalen + CMDLEN ]);
+		sd->card_dstatus = bcmswap32(*(uint32 *)&spi_inbuf2[datalen + CMDLEN ]);
 	} else if (sd->wordlen == 2) { /* 16bit spid */
-		sd->card_dstatus = SPISWAP_WD2(*(uint32 *)&spi_inbuf2[datalen + CMDLEN ]);
+		sd->card_dstatus = (bcmswap16(*(uint16 *)&spi_inbuf2[datalen + CMDLEN ]) |
+		                   (bcmswap16(*(uint16 *)&spi_inbuf2[datalen + CMDLEN + 2]) << 16));
 	} else {
 		sd_err(("%s: Host is %d bit machine, could not read SPI dstatus.\n",
 		        __FUNCTION__, 8 * sd->wordlen));
@@ -1323,13 +1309,9 @@ bcmspi_host_device_init_adapt(sdioh_info_t *sd)
 			OSL_DELAY(1000);
 		}
 
-#ifndef CUSTOMER_HW4
+
 		/* Change to host controller intr-polarity of active-low */
 		wrregdata &= ~INTR_POLARITY;
-#else
-		/* Change to host controller intr-polarity of active-high */
-		wrregdata |= INTR_POLARITY;
-#endif
 		sd_trace(("(we are still in 16bit mode) 32bit Write LE reg-ctrl-data = 0x%x\n",
 		        wrregdata));
 		/* Change to 32bit mode */
@@ -1585,11 +1567,12 @@ bcmspi_cmd_issue(sdioh_info_t *sd, bool use_dma, uint32 cmd_arg,
 	 * according to the wordlen mode(16/32bit) the device is in.
 	 */
 	if (sd->wordlen == 4) { /* 32bit spid */
-		*(uint32 *)spi_outbuf = SPISWAP_WD4(cmd_arg);
+		*(uint32 *)spi_outbuf = bcmswap32(cmd_arg);
 		if (datalen & 0x3)
 			datalen += (4 - (datalen & 0x3));
 	} else if (sd->wordlen == 2) { /* 16bit spid */
-		*(uint32 *)spi_outbuf = SPISWAP_WD2(cmd_arg);
+		*(uint16 *)spi_outbuf = bcmswap16(cmd_arg & 0xffff);
+		*(uint16 *)&spi_outbuf[2] = bcmswap16((cmd_arg & 0xffff0000) >> 16);
 		if (datalen & 0x1)
 			datalen++;
 		if (datalen < 4)
@@ -1618,10 +1601,12 @@ bcmspi_cmd_issue(sdioh_info_t *sd, bool use_dma, uint32 cmd_arg,
 			for (i = 0; i < datalen/4; i++) {
 				if (sd->wordlen == 4) { /* 32bit spid */
 					*(uint32 *)&spi_outbuf[i * 4 + CMDLEN] =
-						SPISWAP_WD4(data[i]);
+						bcmswap32(data[i]);
 				} else if (sd->wordlen == 2) { /* 16bit spid */
-					*(uint32 *)&spi_outbuf[i * 4 + CMDLEN] =
-						SPISWAP_WD2(data[i]);
+					*(uint16 *)&spi_outbuf[i * 4 + CMDLEN] =
+						bcmswap16(data[i] & 0xffff);
+					*(uint16 *)&spi_outbuf[i * 4 + CMDLEN + 2] =
+						bcmswap16((data[i] & 0xffff0000) >> 16);
 				}
 			}
 		}
@@ -1677,11 +1662,13 @@ bcmspi_cmd_issue(sdioh_info_t *sd, bool use_dma, uint32 cmd_arg,
 		if (GFIELD(cmd_arg, SPI_RW_FLAG) == 0) { /* if read cmd */
 			for (j = 0; j < datalen/4; j++) {
 				if (sd->wordlen == 4) { /* 32bit spid */
-					data[j] = SPISWAP_WD4(*(uint32 *)&spi_inbuf[j * 4 +
+					data[j] = bcmswap32(*(uint32 *)&spi_inbuf[j * 4 +
 					            CMDLEN + resp_delay]);
 				} else if (sd->wordlen == 2) { /* 16bit spid */
-					data[j] = SPISWAP_WD2(*(uint32 *)&spi_inbuf[j * 4 +
-					            CMDLEN + resp_delay]);
+					data[j] = (bcmswap16(*(uint16 *)&spi_inbuf[j * 4 +
+					            CMDLEN + resp_delay])) |
+					         ((bcmswap16(*(uint16 *)&spi_inbuf[j * 4 +
+					            CMDLEN + resp_delay + 2])) << 16);
 				}
 			}
 
@@ -1709,9 +1696,10 @@ bcmspi_cmd_issue(sdioh_info_t *sd, bool use_dma, uint32 cmd_arg,
 	dstatus_idx += (datalen + CMDLEN + resp_delay);
 	/* Last 4bytes are dstatus.  Device is configured to return status bits. */
 	if (sd->wordlen == 4) { /* 32bit spid */
-		sd->card_dstatus = SPISWAP_WD4(*(uint32 *)&spi_inbuf[dstatus_idx]);
+		sd->card_dstatus = bcmswap32(*(uint32 *)&spi_inbuf[dstatus_idx]);
 	} else if (sd->wordlen == 2) { /* 16bit spid */
-		sd->card_dstatus = SPISWAP_WD2(*(uint32 *)&spi_inbuf[dstatus_idx]);
+		sd->card_dstatus = (bcmswap16(*(uint16 *)&spi_inbuf[dstatus_idx]) |
+		                   (bcmswap16(*(uint16 *)&spi_inbuf[dstatus_idx + 2]) << 16));
 	} else {
 		sd_err(("Host is %d bit machine, could not read SPI dstatus.\n",
 			8 * sd->wordlen));
