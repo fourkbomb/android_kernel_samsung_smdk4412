@@ -121,7 +121,7 @@ static int isUserlandCallerPrivileged(
 	 * http://android-dls.com/wiki/index.php?title=Android_UIDs_and_GIDs
 	 */
 #ifdef MC_ANDROID_UID_CHECK
-	return (current_euid() <= AID_SYSTEM);
+	return (current_euid() == AID_SYSTEM);
 #else
 	/* capable should cover all possibilities, root or sudo, uid checking
 	 * was not very reliable */
@@ -183,7 +183,7 @@ static inline int lockUserPages(
 
 		/* lock user pages, must hold the mmap_sem to do this. */
 		down_read(&(pTask->mm->mmap_sem));
-		lockedPages = get_user_pages(
+		lockedPages = get_user_pages_nocma(
 				      pTask,
 				      pTask->mm,
 				      (unsigned long)virtStartPageAddr,
@@ -1433,6 +1433,7 @@ int mobicore_free(
 	int			ret = 0;
 	struct mc_tuple		*pTuple;
 	unsigned int		i;
+	struct mm_struct	*mm = current->mm;
 
 	do {
 		/* search for the given address in the tuple list */
@@ -1445,6 +1446,12 @@ int mobicore_free(
 			MCDRV_DBG_ERROR("tuple not found\n");
 			ret = -EFAULT;
 			break;
+		}
+
+		if(do_munmap(mm, (long unsigned int)pTuple->virtUserAddr,
+				pTuple->reqSize) < 0) {
+			MCDRV_DBG_ERROR("Memory range can't be unmapped\n");
+			ret = -EINVAL;
 		}
 
 		MCDRV_DBG_VERBOSE("physAddr=0x%p, virtAddr=0x%p\n",
@@ -2468,6 +2475,7 @@ static int mcKernelModule_mmap(
 			pTuple->virtKernelAddr = kernelVirtAddr;
 			pTuple->virtUserAddr   = (void *)(pVmArea->vm_start);
 			pTuple->numPages       = (1U << order);
+			pTuple->reqSize        = requestedSize;
 		}
 
 		/* set response in allocated buffer */

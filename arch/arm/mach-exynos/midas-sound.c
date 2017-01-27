@@ -331,11 +331,16 @@ struct platform_device s3c_device_fm34 = {
 	defined(CONFIG_FM_SI4705_MODULE)
 static void fmradio_power(int on)
 {
+	int err;
 #if defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_M0_CTC)
 	gpio_set_value(si47xx_data.gpio_sw, GPIO_LEVEL_HIGH);
 #endif
 	if (on) {
-		gpio_request(GPIO_FM_INT, "GPC1");
+		err = gpio_request(GPIO_FM_INT, "GPC1");
+		if (err) {
+			pr_err(KERN_ERR "GPIO_FM_INT GPIO set error!\n");
+			return;
+		}
 		gpio_direction_output(GPIO_FM_INT, 1);
 		gpio_set_value(si47xx_data.gpio_rst, GPIO_LEVEL_LOW);
 		gpio_set_value(GPIO_FM_INT, GPIO_LEVEL_LOW);
@@ -471,6 +476,10 @@ void __init midas_sound_init(void)
 		i2c_register_board_info(I2C_NUM_CODEC, i2c_wm1811,
 						ARRAY_SIZE(i2c_wm1811));
 
+#elif defined(CONFIG_MACH_M3_JPN_DCM)
+		SET_PLATDATA_CODEC(NULL);
+		i2c_register_board_info(I2C_NUM_CODEC, i2c_wm1811,
+						ARRAY_SIZE(i2c_wm1811));
 #else
 	if (system_rev != 3 && system_rev >= 0) {
 		SET_PLATDATA_CODEC(NULL);

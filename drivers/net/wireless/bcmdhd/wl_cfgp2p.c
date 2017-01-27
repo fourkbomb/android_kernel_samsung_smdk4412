@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_cfgp2p.c 354184 2012-08-30 08:08:08Z $
+ * $Id: wl_cfgp2p.c 357864 2012-09-20 06:41:42Z $
  *
  */
 #include <typedefs.h>
@@ -1055,7 +1055,7 @@ wl_cfgp2p_set_management_ie(struct wl_priv *wl, struct net_device *ndev, s32 bss
 	struct parsed_vndr_ies new_vndr_ies;
 	s32 i;
 	u8 *ptr;
-	u32 remained_buf_len;
+	s32 remained_buf_len;
 
 #define IE_TYPE(type, bsstype) (wl_to_p2p_bss_saved_ie(wl, bsstype).p2p_ ## type ## _ie)
 #define IE_TYPE_LEN(type, bsstype) (wl_to_p2p_bss_saved_ie(wl, bsstype).p2p_ ## type ## _ie_len)
@@ -1218,7 +1218,9 @@ wl_cfgp2p_set_management_ie(struct wl_priv *wl, struct net_device *ndev, s32 bss
 					"add");
 
 				/* verify remained buf size before copy data */
-				if ((remained_buf_len -= vndrie_info->ie_len) < 0) {
+				if (remained_buf_len >= vndrie_info->ie_len) {
+					remained_buf_len -= vndrie_info->ie_len;
+				} else {
 					CFGP2P_ERR(("no space in mgmt_ie_buf: pktflag = %d, "
 						"found vndr ies # = %d(cur %d), remained len %d, "
 						"cur mgmt_ie_len %d, new ie len = %d\n",
@@ -1448,6 +1450,8 @@ wl_cfgp2p_listen_complete(struct wl_priv *wl, struct net_device *ndev,
 {
 	s32 ret = BCME_OK;
 	struct net_device *netdev;
+	if (!wl || !wl->p2p)
+		return BCME_ERROR;
 	if (wl->p2p_net == ndev) {
 		netdev = wl_to_prmry_ndev(wl);
 	} else {
@@ -1693,6 +1697,11 @@ wl_cfgp2p_tx_action_frame(struct wl_priv *wl, struct net_device *dev,
 	CFGP2P_INFO(("\n"));
 	CFGP2P_INFO(("channel : %u , dwell time : %u\n",
 	    af_params->channel, af_params->dwell_time));
+
+#if defined(CONFIG_MACH_M3_JPN_DCM)
+	if (!wl)
+		return BCME_ERROR;
+#endif
 
 	wl_clr_p2p_status(wl, ACTION_TX_COMPLETED);
 	wl_clr_p2p_status(wl, ACTION_TX_NOACK);
@@ -2230,8 +2239,6 @@ wl_cfgp2p_register_ndev(struct wl_priv *wl)
 	}
 
 	printk("%s: P2P Interface Registered\n", net->name);
-	wdev->wiphy->interface_modes |= (BIT(NL80211_IFTYPE_P2P_CLIENT)
-		| BIT(NL80211_IFTYPE_P2P_GO));
 
 	return ret;
 fail:
@@ -2307,8 +2314,8 @@ static int wl_cfgp2p_if_open(struct net_device *net)
 	 */
 	wl_cfg80211_do_driver_init(net);
 
-//	wdev->wiphy->interface_modes |= (BIT(NL80211_IFTYPE_P2P_CLIENT)
-//		| BIT(NL80211_IFTYPE_P2P_GO));
+	wdev->wiphy->interface_modes |= (BIT(NL80211_IFTYPE_P2P_CLIENT)
+		| BIT(NL80211_IFTYPE_P2P_GO));
 
 	return 0;
 }
@@ -2336,9 +2343,9 @@ static int wl_cfgp2p_if_stop(struct net_device *net)
 	spin_unlock_irqrestore(&wl->cfgdrv_lock, flags);
 	if (clear_flag)
 		wl_clr_drv_status(wl, SCANNING, net);
-//	wdev->wiphy->interface_modes = (wdev->wiphy->interface_modes)
-//					& (~(BIT(NL80211_IFTYPE_P2P_CLIENT)|
-//					BIT(NL80211_IFTYPE_P2P_GO)));
+	wdev->wiphy->interface_modes = (wdev->wiphy->interface_modes)
+					& (~(BIT(NL80211_IFTYPE_P2P_CLIENT)|
+					BIT(NL80211_IFTYPE_P2P_GO)));
 #if defined(CUSTOMER_HW4)
 	if (net->flags & IFF_UP)
 		net->flags &= ~IFF_UP;

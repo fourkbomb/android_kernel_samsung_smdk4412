@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_cfg80211.h 353885 2012-08-29 05:21:34Z $
+ * $Id: wl_cfg80211.h 357867 2012-09-20 06:57:44Z $
  */
 
 #ifndef _wl_cfg80211_h_
@@ -76,7 +76,7 @@ do {										\
 	if ((wl_dbg_level & WL_DBG_ERR) && net_ratelimit()) {				\
 			printk(KERN_INFO "CFG80211-INFO2) %s : ", __func__);	\
 			printk args;						\
-		} 								\
+		}								\
 } while (0)
 #endif /* defined(DHD_DEBUG) */
 
@@ -119,7 +119,7 @@ do {										\
 	if (wl_dbg_level & WL_DBG_ERR) {				\
 			printk(KERN_INFO "CFG80211-TRACE) %s : ", __func__);	\
 			printk args;						\
-		} 								\
+		}								\
 } while (0)
 #else
 #define	WL_TRACE_HW4			WL_TRACE
@@ -158,7 +158,7 @@ do {									\
 #define IFACE_MAX_CNT 		2
 #define WL_SCAN_CONNECT_DWELL_TIME_MS 200
 #define WL_SCAN_JOIN_PROBE_INTERVAL_MS 20
-#define WL_AF_TX_MAX_RETRY 	5
+#define WL_AF_TX_MAX_RETRY	5
 
 #define WL_SCAN_TIMER_INTERVAL_MS	8000 /* Scan timeout */
 #define WL_CHANNEL_SYNC_RETRY 	5
@@ -307,6 +307,7 @@ struct wl_security {
 	u32 cipher_pairwise;
 	u32 cipher_group;
 	u32 wpa_auth;
+	u32 auth_assoc_res_status;
 };
 
 /* ibss information for currently joined ibss network */
@@ -832,7 +833,7 @@ extern s32 wl_cfg80211_set_p2p_ps(struct net_device *net, char* buf, int len);
 extern int wl_cfg80211_hang(struct net_device *dev, u16 reason);
 extern s32 wl_mode_to_nl80211_iftype(s32 mode);
 int wl_cfg80211_do_driver_init(struct net_device *net);
-void wl_cfg80211_enable_trace(int level);
+void wl_cfg80211_enable_trace(bool set, u32 level);
 extern s32 wl_update_wiphybands(struct wl_priv *wl);
 extern s32 wl_cfg80211_if_is_group_owner(void);
 extern chanspec_t wl_ch_host_to_driver(u16 channel);

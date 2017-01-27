@@ -21,6 +21,11 @@
 #include <linux/serial_core.h>
 #include <linux/uaccess.h>
 
+#define F_WAKE_LOCK
+#ifdef F_WAKE_LOCK
+#include <linux/wakelock.h>
+#endif
+
 #include <linux/types.h>
 #include <asm/smc.h>
 
@@ -28,7 +33,6 @@
 /******************************************************************************
  * log
  ******************************************************************************/
-
 #ifdef FELICA_DEBUG
 #define FELICA_LOG_DEBUG(fmt, args...) printk(KERN_INFO fmt, ## args)
 #else
@@ -39,6 +43,11 @@
 /******************************************************************************
  * global variable
  ******************************************************************************/
+
+#ifdef F_WAKE_LOCK
+struct wake_lock felica_wake_1;
+struct wake_lock felica_wake_2;
+#endif
 
 static struct class *felica_class;
 
@@ -100,6 +109,10 @@ static struct i2c_msg gwrite_msgs[] = {
 };
 #define  FELICA_UART1RX        EXYNOS4_GPA0(4)
 #define  FELICA_UART3RX        EXYNOS4_GPA1(4)
+
+#ifdef F_WAKE_LOCK
+static int tmout_1 = 3*1000;
+#endif
 
 
 /******************************************************************************
@@ -241,6 +254,10 @@ static int felica_uart_open(struct inode *inode, struct file *file)
 			up(&dev_sem->felica_sem);
 			return -EFAULT;
 		}
+#ifdef F_WAKE_LOCK
+		wake_lock(&felica_wake_2);
+		FELICA_LOG_DEBUG("[MFDD] %s Wake Lock(2)", __func__);
+#endif
 	}
 	gfa_open_cnt++;
 
@@ -286,6 +303,10 @@ static int felica_uart_close(struct inode *inode, struct file *file)
 			up(&dev_sem->felica_sem);
 			return -EFAULT;
 		}
+#ifdef F_WAKE_LOCK
+		wake_unlock(&felica_wake_2);
+		FELICA_LOG_DEBUG("[MFDD] %s Wake UnLock(2)", __func__);
+#endif
 	}
 
 	up(&dev_sem->felica_sem);
@@ -303,6 +324,7 @@ static ssize_t felica_uart_read(struct file *file, char __user *buf,
 	int ret = 0;
 	int nlret;
 	size_t wk_len = 0;
+
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 
 	if (down_interruptible(&dev_sem->felica_sem)) {
@@ -367,6 +389,7 @@ static ssize_t felica_uart_write(struct file *file, const char __user *data,
 	int ret = 0;
 	int nlret;
 	size_t wk_len = 0;
+
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 
 	if (down_interruptible(&dev_sem->felica_sem)) {
@@ -574,13 +597,13 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 			gfa_pid = nlh->nlmsg_pid;
 
 #if defined(CONFIG_MACH_T0)
-			port_threshold = 0x09;
+			port_threshold = 0x0a;
 #elif defined(CONFIG_MACH_M3)
 			port_threshold = 0x02;
 #endif
 		if (felica_get_tamper_fuse_cmd() != 1) {
 			if (system_rev >= port_threshold) {
-				s3c_gpio_cfgall_range(FELICA_UART1RX, 4,\
+				s3c_gpio_cfgall_range(FELICA_UART1RX, 2,\
 				S3C_GPIO_SFN(2), S3C_GPIO_PULL_DOWN);
 				felica_uart_port = 1;
 			} else {
@@ -1602,6 +1625,11 @@ static void felica_int_irq_work(struct work_struct *work)
 
 	enable_irq(gpio_to_irq(GPIO_PINID_FELICA_INT));
 	pgint_irq->irq_done = 1;
+
+#ifdef F_WAKE_LOCK
+	wake_lock_timeout(&felica_wake_1, msecs_to_jiffies(tmout_1));
+	FELICA_LOG_DEBUG("[MFDD] %s Wake Lock(1)[%d]", __func__, tmout_1);
+#endif
 	wake_up_interruptible(&pgint_irq->read_wait);
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -2183,6 +2211,10 @@ static int __init felica_init(void)
 		FELICA_LOG_ERR("[MFDD] %s ERROR(class_create)", __func__);
 		return PTR_ERR(felica_class);
 	}
+#ifdef F_WAKE_LOCK
+	wake_lock_init(&felica_wake_1, WAKE_LOCK_SUSPEND, "felica-int-1");
+	wake_lock_init(&felica_wake_2, WAKE_LOCK_SUSPEND, "felica-int-2");
+#endif
 	felica_initialize_pin();
 	felica_register_device();
 	felica_nl_init();
@@ -2201,6 +2233,10 @@ static void __exit felica_exit(void)
 {
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 
+#ifdef F_WAKE_LOCK
+	wake_lock_destroy(&felica_wake_1);
+	wake_lock_destroy(&felica_wake_2);
+#endif
 	felica_i2c_exit();
 	felica_nl_exit();
 	felica_deregister_device();

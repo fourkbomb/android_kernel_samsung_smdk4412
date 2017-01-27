@@ -43,7 +43,7 @@
 
 #define EXTERNAL_MODEM "external_modem"
 #define EHCI_REG_DUMP
-#define DEFAULT_RAW_WAKE_TIME (6*HZ)
+#define DEFAULT_RAW_WAKE_TIME (0*HZ)
 
 BLOCKING_NOTIFIER_HEAD(mdm_reset_notifier_list);
 
@@ -233,6 +233,49 @@ static struct mdm_hsic_pm_data *get_pm_data_by_dev_name(const char *name)
 	return NULL;
 }
 
+/* do not call in irq context */
+int pm_dev_runtime_get_enabled(struct usb_device *udev)
+{
+	int spin = 50;
+
+	while (spin--) {
+		pr_err("%s: rpm status: %d\n", __func__,
+						udev->dev.power.runtime_status);
+		if (udev->dev.power.runtime_status == RPM_ACTIVE ||
+			udev->dev.power.runtime_status == RPM_SUSPENDED) {
+			usb_mark_last_busy(udev);
+			break;
+		}
+		msleep(20);
+	}
+	if (spin <= 0) {
+		pr_err("%s: rpm status %d, return -EAGAIN\n", __func__,
+						udev->dev.power.runtime_status);
+		return -EAGAIN;
+	}
+	usb_mark_last_busy(udev);
+
+	return 0;
+}
+
+/* do not call in irq context */
+int pm_dev_wait_lpa_wake(void)
+{
+	int spin = 50;
+
+	while (lpa_handling && spin--) {
+		pr_debug("%s: lpa wake wait loop\n", __func__);
+		msleep(20);
+	}
+
+	if (lpa_handling) {
+		pr_err("%s: in lpa wakeup, return EAGAIN\n", __func__);
+		return -EAGAIN;
+	}
+
+	return 0;
+}
+
 void notify_modem_fatal(void)
 {
 	struct mdm_hsic_pm_data *pm_data =
@@ -253,6 +296,8 @@ void notify_modem_fatal(void)
 
 		pm_runtime_get_noresume(dev);
 		pm_runtime_dont_use_autosuspend(dev);
+		/* if it's in going suspend, give settle time before wake up */
+		msleep(100);
 		wake_up_all(&dev->power.wait_queue);
 		pm_runtime_resume(dev);
 		pm_runtime_get_noresume(dev);
@@ -825,6 +870,11 @@ static int mdm_hsic_pm_gpio_init(struct mdm_hsic_pm_data *pm_data,
 		if (ret < 0)
 			return ret;
 		gpio_direction_output(pm_data->gpio_host_ready, 1);
+		s3c_gpio_cfgpin(pm_data->gpio_host_ready, S3C_GPIO_OUTPUT);
+		s3c_gpio_setpull(pm_data->gpio_host_ready, S3C_GPIO_PULL_NONE);
+		s5p_gpio_set_drvstr(pm_data->gpio_host_ready,
+							S5P_GPIO_DRVSTR_LV4);
+		gpio_set_value(pm_data->gpio_host_ready, 1);		
 	} else
 		return -ENXIO;
 

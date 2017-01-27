@@ -476,7 +476,11 @@ static struct s3cfb_lcd s6e8aa0 = {
 
 	.freq = 60,
 #if defined(CONFIG_S6E8AA0_AMS480GYXX)
+	#if defined(CONFIG_MACH_M3_JPN_DCM)
+		.freq_limit = 43,
+	#else
 	.freq_limit = 40,
+#endif
 #endif
 
 	/* minumun value is 0 except for wr_act time. */
@@ -488,9 +492,21 @@ static struct s3cfb_lcd s6e8aa0 = {
 	},
 
 	.timing = {
+		#if defined(CONFIG_MACH_M3_JPN_DCM)
+			.h_fp = 15,
+		#else
 		.h_fp = 5,
+		#endif		
+		#if defined(CONFIG_MACH_M3_JPN_DCM)
+			.h_bp = 10,
+		#else
 		.h_bp = 5,
+		#endif
+		#if defined(CONFIG_MACH_M3_JPN_DCM)
+			.h_sw = 10,
+		#else
 		.h_sw = 5,
+		#endif
 		.v_fp = 13,
 		.v_fpe = 1,
 		.v_bp = 1,
