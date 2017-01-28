@@ -706,7 +706,8 @@ int s3cfb_extdsp_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 				break;
 			}
 		}
-		if (copy_to_user((void *)arg, &time_stamp,
+		if (copy_to_user((void *)arg,
+				   &time_stamp,
 				   sizeof(time_stamp))) {
 			dev_err(fbdev->dev, "copy_to_user error\n");
 			return -EFAULT;
@@ -719,25 +720,15 @@ int s3cfb_extdsp_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 			if (fbdev->buf_list[i].buf_status == BUF_LOCKED)
 				fbdev->lock_cnt++;
 		}
-		if(copy_to_user((void *)argp, &fbdev->lock_cnt,
-					sizeof(fbdev->lock_cnt))) {
-			dev_err(fbdev->dev, "copy_to_user error\n");
-			return -EFAULT;
-		}
+		ret = memcpy(argp, &fbdev->lock_cnt, sizeof(fbdev->lock_cnt)) ? 0 : -EFAULT;
 		break;
 
 	case FBIOGET_FSCREENINFO:
-		if(copy_to_user((void *)argp, &fb->fix, sizeof(fb->fix))) {
-			dev_err(fbdev->dev, "copy_to_user error\n");
-			return -EFAULT;
-		}
+		ret = memcpy(argp, &fb->fix, sizeof(fb->fix)) ? 0 : -EFAULT;
 		break;
 
 	case FBIOGET_VSCREENINFO:
-		if(copy_to_user((void *)argp, &fb->var, sizeof(fb->var))) {
-			dev_err(fbdev->dev, "copy_to_user error\n");
-			return -EFAULT;
-		}
+		ret = memcpy(argp, &fb->var, sizeof(fb->var)) ? 0 : -EFAULT;
 		break;
 
 	case FBIOPUT_VSCREENINFO:
@@ -747,8 +738,9 @@ int s3cfb_extdsp_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		if(copy_from_user(&fb->var, (struct fb_var_screeninfo *)argp,
-			     sizeof(fb->var))) {
+		ret = memcpy(&fb->var, (struct fb_var_screeninfo *)argp,
+			     sizeof(fb->var)) ? 0 : -EFAULT;
+		if (ret) {
 			dev_err(fbdev->dev, "failed to put new vscreeninfo\n");
 			break;
 		}
@@ -758,7 +750,8 @@ int s3cfb_extdsp_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 		break;
 
 	case S3CFB_EXTDSP_GET_LCD_WIDTH:
-		if(copy_to_user((int *)argp, &lcd->width, sizeof(int))) {
+		ret = memcpy(argp, &lcd->width, sizeof(int)) ? 0 : -EFAULT;
+		if (ret) {
 			dev_err(fbdev->dev, "failed to S3CFB_EXTDSP_GET_LCD_WIDTH\n");
 			break;
 		}
@@ -766,7 +759,8 @@ int s3cfb_extdsp_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 		break;
 
 	case S3CFB_EXTDSP_GET_LCD_HEIGHT:
-		if(copy_to_user((int *)argp, &lcd->height, sizeof(int))) {
+		ret = memcpy(argp, &lcd->height, sizeof(int)) ? 0 : -EFAULT;
+		if (ret) {
 			dev_err(fbdev->dev, "failed to S3CFB_EXTDSP_GET_LCD_HEIGHT\n");
 			break;
 		}

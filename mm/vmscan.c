@@ -257,7 +257,7 @@ unsigned long shrink_slab(struct shrink_control *shrink,
 
 	list_for_each_entry(shrinker, &shrinker_list, list) {
 		unsigned long long delta;
-		long total_scan, pages_got;
+		unsigned long total_scan;
 		unsigned long max_pass;
 
 		max_pass = do_shrinker_shrink(shrinker, shrink, 0);
@@ -293,20 +293,15 @@ unsigned long shrink_slab(struct shrink_control *shrink,
 							this_scan);
 			if (shrink_ret == -1)
 				break;
-			if (shrink_ret < nr_before) {
-				pages_got = nr_before - shrink_ret;
-				ret += pages_got;
-				total_scan -= pages_got > this_scan ? pages_got : this_scan;
-			} else {
-				total_scan -= this_scan;
-			}
+			if (shrink_ret < nr_before)
+				ret += nr_before - shrink_ret;
 			count_vm_events(SLABS_SCANNED, this_scan);
+			total_scan -= this_scan;
 
 			cond_resched();
 		}
 
-		if (total_scan > 0)
-			shrinker->nr += total_scan;
+		shrinker->nr += total_scan;
 	}
 	up_read(&shrinker_rwsem);
 out:
