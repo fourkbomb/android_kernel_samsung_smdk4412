@@ -257,7 +257,7 @@ unsigned long shrink_slab(struct shrink_control *shrink,
 
 	list_for_each_entry(shrinker, &shrinker_list, list) {
 		unsigned long long delta;
-		unsigned long total_scan;
+		long total_scan, pages_got;
 		unsigned long max_pass;
 
 		max_pass = do_shrinker_shrink(shrinker, shrink, 0);
@@ -293,15 +293,20 @@ unsigned long shrink_slab(struct shrink_control *shrink,
 							this_scan);
 			if (shrink_ret == -1)
 				break;
-			if (shrink_ret < nr_before)
-				ret += nr_before - shrink_ret;
+			if (shrink_ret < nr_before) {
+				pages_got = nr_before - shrink_ret;
+				ret += pages_got;
+				total_scan -= pages_got > this_scan ? pages_got : this_scan;
+			} else {
+				total_scan -= this_scan;
+			}
 			count_vm_events(SLABS_SCANNED, this_scan);
-			total_scan -= this_scan;
 
 			cond_resched();
 		}
 
-		shrinker->nr += total_scan;
+		if (total_scan > 0)
+			shrinker->nr += total_scan;
 	}
 	up_read(&shrinker_rwsem);
 out:
@@ -2975,9 +2980,11 @@ unsigned long zone_reclaimable_pages(struct zone *zone)
 	nr = zone_page_state(zone, NR_ACTIVE_FILE) +
 	     zone_page_state(zone, NR_INACTIVE_FILE);
 
+#ifndef CONFIG_ZRAM_FOR_ANDROID
 	if (nr_swap_pages > 0)
 		nr += zone_page_state(zone, NR_ACTIVE_ANON) +
 		      zone_page_state(zone, NR_INACTIVE_ANON);
+#endif
 
 	return nr;
 }
@@ -3088,6 +3095,7 @@ long rtcc_reclaim_pages(long nr_to_reclaim)
 	struct task_struct *p = current;
 	unsigned long nr_reclaimed;
 
+	printk("RTCC, start reclaim!\n");
 	p->flags |= PF_MEMALLOC;
 	lockdep_set_current_reclaim_state(sc.gfp_mask);
 	reclaim_state.reclaimed_slab = 0;

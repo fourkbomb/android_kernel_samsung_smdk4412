@@ -380,6 +380,9 @@ static void __save_error_info(struct super_block *sb, const char *func,
 static void save_error_info(struct super_block *sb, const char *func,
 			    unsigned int line)
 {
+	if (sb->s_flags & MS_RDONLY)
+		return;
+
 	__save_error_info(sb, func, line);
 	ext4_commit_super(sb, 1);
 }
@@ -2404,6 +2407,17 @@ struct ext4_attr {
 	int offset;
 };
 
+static int parse_strtoull(const char *buf,
+		unsigned long long max, unsigned long long *value)
+{
+	int ret;
+
+	ret = kstrtoull(skip_spaces(buf), 0, value);
+	if (!ret && *value > max)
+		ret = -EINVAL;
+	return ret;
+}
+
 static int parse_strtoul(const char *buf,
 		unsigned long max, unsigned long *value)
 {
@@ -2460,6 +2474,25 @@ static ssize_t extent_cache_misses_show(struct ext4_attr *a,
 					struct ext4_sb_info *sbi, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%lu\n", sbi->extent_cache_misses);
+}
+
+static ssize_t r_blocks_count_show(struct ext4_attr *a,
+		struct ext4_sb_info *sbi, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%llu\n",
+		(unsigned long long) atomic64_read(&sbi->s_r_blocks_count));
+}
+
+static ssize_t r_blocks_count_store(struct ext4_attr *a,
+		struct ext4_sb_info *sbi, const char *buf, size_t count)
+{
+	unsigned long long val;
+
+	if (parse_strtoull(buf, -1ULL, &val))
+		return -EINVAL;
+	atomic64_set(&sbi->s_r_blocks_count, val);
+
+	return count;
 }
 
 static ssize_t inode_readahead_blks_store(struct ext4_attr *a,
@@ -2521,6 +2554,7 @@ EXT4_RO_ATTR(session_write_kbytes);
 EXT4_RO_ATTR(lifetime_write_kbytes);
 EXT4_RO_ATTR(extent_cache_hits);
 EXT4_RO_ATTR(extent_cache_misses);
+EXT4_RW_ATTR(r_blocks_count);
 EXT4_ATTR_OFFSET(inode_readahead_blks, 0644, sbi_ui_show,
 		 inode_readahead_blks_store, s_inode_readahead_blks);
 EXT4_RW_ATTR_SBI_UI(inode_goal, s_inode_goal);
@@ -2538,6 +2572,7 @@ static struct attribute *ext4_attrs[] = {
 	ATTR_LIST(lifetime_write_kbytes),
 	ATTR_LIST(extent_cache_hits),
 	ATTR_LIST(extent_cache_misses),
+	ATTR_LIST(r_blocks_count),
 	ATTR_LIST(inode_readahead_blks),
 	ATTR_LIST(inode_goal),
 	ATTR_LIST(mb_stats),
@@ -3665,6 +3700,8 @@ no_journal:
 		}
 	}
 
+	atomic64_set(&sbi->s_r_blocks_count, ext4_r_blocks_count(es));
+
 	err = ext4_setup_system_zone(sb);
 	if (err) {
 		ext4_msg(sb, KERN_ERR, "failed to initialize system "
@@ -4539,8 +4576,8 @@ static int ext4_statfs(struct dentry *dentry, struct kstatfs *buf)
 		       percpu_counter_sum_positive(&sbi->s_dirtyblocks_counter);
 	/* prevent underflow in case that few free space is available */
 	buf->f_bfree = max_t(s64, bfree, 0);
-	buf->f_bavail = buf->f_bfree - ext4_r_blocks_count(es);
-	if (buf->f_bfree < ext4_r_blocks_count(es))
+	buf->f_bavail = buf->f_bfree - atomic64_read(&sbi->s_r_blocks_count);
+	if (buf->f_bfree < atomic64_read(&sbi->s_r_blocks_count))
 		buf->f_bavail = 0;
 	buf->f_files = le32_to_cpu(es->s_inodes_count);
 	buf->f_ffree = percpu_counter_sum_positive(&sbi->s_freeinodes_counter);
@@ -4833,7 +4870,14 @@ out:
 /* for debugging, sangwoo2.lee */
 void print_bh(struct super_block *sb, struct buffer_head *bh, int start, int len)
 {
-	print_block_data(sb, bh->b_blocknr, bh->b_data, start, len);
+	if (bh) {
+		printk(KERN_ERR " print_bh: bh %p,"
+				" bh->b_size %u, bh->b_data %p\n",
+				(void *) bh, bh->b_size, (void *) bh->b_data);
+		print_block_data(sb, bh->b_blocknr, bh->b_data, start, len);
+	}
+	else
+		printk(KERN_ERR " print_bh: bh is null!\n");
 }
 
 void print_block_data(struct super_block *sb, sector_t blocknr, unsigned char *data_to_dump, int start, int len)

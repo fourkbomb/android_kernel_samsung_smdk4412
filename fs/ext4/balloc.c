@@ -378,7 +378,7 @@ static int ext4_has_free_blocks(struct ext4_sb_info *sbi,
 
 	free_blocks  = percpu_counter_read_positive(fbc);
 	dirty_blocks = percpu_counter_read_positive(dbc);
-	root_blocks = ext4_r_blocks_count(sbi->s_es);
+	root_blocks = atomic64_read(&sbi->s_r_blocks_count);
 
 	if (free_blocks - (nblocks + root_blocks + dirty_blocks) <
 						EXT4_FREEBLOCKS_WATERMARK) {

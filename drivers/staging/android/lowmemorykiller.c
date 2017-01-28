@@ -35,17 +35,17 @@
 #include <linux/oom.h>
 #include <linux/sched.h>
 #include <linux/notifier.h>
+#include <linux/delay.h>
+#include <linux/swap.h>
 
 #include <linux/ratelimit.h>
 
 #ifdef CONFIG_ZSWAP
 #include <linux/fs.h>
-#include <linux/swap.h>
 #endif
 
 #ifdef CONFIG_ZRAM_FOR_ANDROID
 #include <linux/fs.h>
-#include <linux/swap.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/mm_inline.h>
@@ -191,6 +191,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 #endif
 	int other_file = global_page_state(NR_FILE_PAGES) -
 						global_page_state(NR_SHMEM);
+	struct reclaim_state *reclaim_state = current->reclaim_state;
 
 #if defined(CONFIG_ZRAM_FOR_ANDROID) || defined(CONFIG_ZSWAP)
 	other_file -= total_swapcache_pages;
@@ -336,6 +337,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			lowmem_deathpending_timeout = jiffies + HZ;
 			force_sig(SIGKILL, selected[i]);
 			rem -= selected_tasksize[i];
+			if(reclaim_state)
+				reclaim_state->reclaimed_slab += selected_tasksize[i];
 #ifdef LMK_COUNT_READ
 			lmk_count++;
 #endif
@@ -350,6 +353,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		lowmem_deathpending_timeout = jiffies + HZ;
 		force_sig(SIGKILL, selected);
 		rem -= selected_tasksize;
+		if(reclaim_state)
+			reclaim_state->reclaimed_slab += selected_tasksize;
 #ifdef LMK_COUNT_READ
 		lmk_count++;
 #endif
@@ -634,10 +639,13 @@ static int do_compcache(void * nothing)
 		if (kthread_should_stop())
 			break;
 
-		if (rtcc_reclaim_pages(number_of_reclaim_pages) < minimum_reclaim_pages)
-			cancel_soft_reclaim();
+		if (atomic_read(&s_reclaim.kcompcached_running) == 1) {
+			if (rtcc_reclaim_pages(number_of_reclaim_pages) < minimum_reclaim_pages)
+				cancel_soft_reclaim();
 
-		atomic_set(&s_reclaim.kcompcached_running, 0);
+			atomic_set(&s_reclaim.kcompcached_running, 0);
+		}
+
 		set_current_state(TASK_INTERRUPTIBLE);
 		schedule();
 	}
