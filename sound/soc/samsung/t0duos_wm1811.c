@@ -525,7 +525,7 @@ static void t0_micd_set_rate(struct snd_soc_codec *codec)
 			    WM8958_MICD_RATE_MASK, val);
 }
 
-static void t0_micdet(u16 status, void *data)
+static void t0_micdet(void *data, u16 status)
 {
 	struct wm1811_machine_priv *wm1811 = data;
 	struct wm8994_priv *wm8994 = snd_soc_codec_get_drvdata(wm1811->codec);
@@ -1227,8 +1227,8 @@ static int t0_wm1811_init_paiftx(struct snd_soc_pcm_runtime *rtd)
 	if (wm8994->revision > 1) {
 		dev_info(codec->dev, "wm1811: Rev %c support mic detection\n",
 			'A' + wm8994->revision);
-		ret = wm8958_mic_detect(codec, &wm1811->jack, t0_micdet,
-			wm1811);
+		ret = wm8958_mic_detect(codec, &wm1811->jack, NULL,
+				NULL, t0_micdet, wm1811);
 
 		if (ret < 0)
 			dev_err(codec->dev, "Failed start detection: %d\n",
@@ -1481,7 +1481,7 @@ static void t0_jackdet_set_mode(struct snd_soc_codec *codec, u16 mode)
 {
 	struct wm8994_priv *wm8994 = snd_soc_codec_get_drvdata(codec);
 
-	if (!wm8994->jackdet || !wm8994->jack_cb)
+	if (!wm8994->jackdet || !wm8994->micdet[0].jack)
 		return;
 
 	if (wm8994->active_refcount)

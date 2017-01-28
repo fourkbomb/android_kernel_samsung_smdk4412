@@ -362,7 +362,7 @@ handle_rx:
 			return;
 #endif
 		/* Resubmit urb so we continue receiving */
-		if (status != -ESHUTDOWN || !intfdata->suspended) {
+		if (!intfdata->suspended) {
 			err = usb_submit_urb(urb, GFP_ATOMIC);
 			if (err) {
 				if (err != -EPERM) {

@@ -122,18 +122,18 @@ rtc_sysfs_show_alarm_boot(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	ssize_t retval;
+	unsigned long alarm;
 	struct rtc_wkalrm alm;
 
-	printk(" rtc_sysfs_show_wakealarm ++\n");
 	retval = rtc_get_alarm_boot(to_rtc_device(dev), &alm);
 	if (retval) {
 		retval = sprintf(buf, "%d", alm.enabled);
-		printk(" rtc_sysfs_show_wakealarm -- enabled? : %d\n", alm.enabled);
+		printk(KERN_INFO "rtc_sysfs_show_wakealarm enabled? : %d\n",
+			alm.enabled);
 		return retval;
 	}
-	printk(" rtc_sysfs_show_wakealarm --\n");
-	return retval;
 
+	return retval;
 }
 #endif
 

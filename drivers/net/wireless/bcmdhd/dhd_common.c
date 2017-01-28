@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_common.c 359280 2012-09-27 07:15:15Z $
+ * $Id: dhd_common.c 413249 2013-07-18 08:36:24Z $
  */
 #include <typedefs.h>
 #include <osl.h>
@@ -284,6 +284,13 @@ dhd_wl_ioctl(dhd_pub_t *dhd_pub, int ifindex, wl_ioctl_t *ioc, void *buf, int le
 #endif /* CUSTOMER_HW4 */
 		/* Send hang event only if dhd_open() was success */
 		dhd_os_check_hang(dhd_pub, ifindex, ret);
+
+		if (ret == -ETIMEDOUT && !dhd_pub->up) {
+			DHD_ERROR(("%s: 'resumed on timeout' error is "
+				"occurred before the interface does not"
+				" bring up\n", __FUNCTION__));
+			dhd_pub->busstate = DHD_BUS_DOWN;
+		}
 
 	dhd_os_proto_unblock(dhd_pub);
 
@@ -677,7 +684,7 @@ dhd_ioctl(dhd_pub_t * dhd_pub, dhd_ioctl_t *ioc, void * buf, uint buflen)
 
 	case DHD_GET_VERSION:
 		if (buflen < sizeof(int))
-			bcmerror = -BCME_BUFTOOSHORT;
+			bcmerror = BCME_BUFTOOSHORT;
 		else
 			*(int*)buf = DHD_IOCTL_VERSION;
 		break;
@@ -1437,6 +1444,19 @@ fail:
 	if (buf)
 		MFREE(dhd->osh, buf, BUF_SIZE);
 }
+
+void dhd_pktfilter_offload_delete(dhd_pub_t *dhd, int id)
+{
+	char iovbuf[32];
+	int ret;
+
+	bcm_mkiovar("pkt_filter_delete", (char *)&id, 4, iovbuf, sizeof(iovbuf));
+	ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);
+	if (ret < 0) {
+		DHD_ERROR(("%s: Failed to delete filter ID:%d, ret=%d\n",
+			__FUNCTION__, id, ret));
+	}
+}
 #endif /* PKT_FILTER_SUPPORT */
 
 /* ========================== */
@@ -1504,7 +1524,7 @@ dhd_aoe_arp_clr(dhd_pub_t *dhd, int idx)
 		idx = 0;
 
 	iov_len = bcm_mkiovar("arp_table_clear", 0, 0, iovbuf, sizeof(iovbuf));
-	if ((ret  = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, iov_len, TRUE, idx) < 0))
+	if ((ret  = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, iov_len, TRUE, idx)) < 0)
 		DHD_ERROR(("%s failed code %d\n", __FUNCTION__, ret));
 }
 
@@ -1933,6 +1953,7 @@ dhd_pno_enable(dhd_pub_t *dhd, int pfn_enabled)
 		return ret;
 	}
 
+#ifndef WL_SCHED_SCAN
 	if (!dhd_support_sta_mode(dhd))
 		return (ret);
 
@@ -1942,6 +1963,7 @@ dhd_pno_enable(dhd_pub_t *dhd, int pfn_enabled)
 		DHD_ERROR(("%s pno is NOT enable : called in assoc mode , ignore\n", __FUNCTION__));
 		return ret;
 	}
+#endif /* !WL_SCHED_SCAN */
 
 	/* Enable/disable PNO */
 	if ((ret = bcm_mkiovar("pfn", (char *)&pfn_enabled, 4, iovbuf, sizeof(iovbuf))) > 0) {
@@ -1981,8 +2003,10 @@ dhd_pno_set(dhd_pub_t *dhd, wlc_ssid_t* ssids_local, int nssid, ushort scan_fr,
 		err = -1;
 		return err;
 	}
+#ifndef WL_SCHED_SCAN
 	if (!dhd_support_sta_mode(dhd))
 		return err;
+#endif /* !WL_SCHED_SCAN */
 
 	/* Check for broadcast ssid */
 	for (k = 0; k < nssid; k++) {
@@ -2109,7 +2133,7 @@ int dhd_keep_alive_onoff(dhd_pub_t *dhd)
 	strncpy(buf, str, str_len);
 	buf[ str_len ] = '\0';
 	mkeep_alive_pktp = (wl_mkeep_alive_pkt_t *) (buf + str_len + 1);
-	mkeep_alive_pkt.period_msec = KEEP_ALIVE_PERIOD;
+	mkeep_alive_pkt.period_msec = CUSTOM_KEEP_ALIVE_SETTING;
 	buf_len = str_len + 1;
 	mkeep_alive_pkt.version = htod16(WL_MKEEP_ALIVE_VERSION);
 	mkeep_alive_pkt.length = htod16(WL_MKEEP_ALIVE_FIXED_LEN);

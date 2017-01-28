@@ -3984,6 +3984,7 @@ static int mms_ts_fw_check(struct mms_ts_info *info)
 	if (ret < 0) {		/* tsp connect check */
 		pr_err("%s: i2c fail...[%d], addr[%d]\n",
 			   __func__, ret, info->client->addr);
+#if	!defined(CONFIG_MACH_GD2)
 		if (gpio_get_value(GPIO_OLED_DET)) {
 			dev_err(&client->dev, "panel connected\n");
 			dev_err(&client->dev, "excute core firmware update\n");
@@ -3998,6 +3999,7 @@ static int mms_ts_fw_check(struct mms_ts_info *info)
 			pr_err("%s: tsp driver unload\n", __func__);
 			return ret;
 		}
+#endif
 	}
 
 	ver = get_fw_version(info, SEC_BOOTLOADER);

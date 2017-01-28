@@ -516,6 +516,7 @@ static int rmnet_usb_probe(struct usb_interface *iface,
 	unsigned int		iface_num;
 	static int		first_rmnet_iface_num = -EINVAL;
 	int			status = 0;
+	int			ret = 0;
 
 	udev = interface_to_usbdev(iface);
 	iface_num = iface->cur_altsetting->desc.bInterfaceNumber;
@@ -557,8 +558,16 @@ static int rmnet_usb_probe(struct usb_interface *iface,
 
 	status = rmnet_usb_ctrl_probe(iface, unet->status,
 		(struct rmnet_ctrl_dev *)unet->data[1]);
-	if (status)
-		goto out;
+	if (status) {
+		if (status == -EPIPE) {
+			ret = set_qmicm_mode(rmnet_pm_dev);
+			if (ret < 0)
+				goto out;
+			return status;
+		}
+		else
+			goto out;
+	}
 
 	status = rmnet_usb_data_debugfs_init(unet);
 	if (status)
@@ -631,6 +640,7 @@ static const struct driver_info rmnet_info_pid9034 = {
 
 static const struct driver_info rmnet_info_pid9048 = {
 	.description   = "RmNET net device",
+	.flags		= FLAG_SEND_ZLP,
 	.bind          = rmnet_usb_bind,
 	.tx_fixup      = rmnet_usb_tx_fixup,
 	.rx_fixup      = rmnet_usb_rx_fixup,
@@ -640,6 +650,7 @@ static const struct driver_info rmnet_info_pid9048 = {
 
 static const struct driver_info rmnet_info_pid904c = {
 	.description   = "RmNET net device",
+	.flags		= FLAG_SEND_ZLP,
 	.bind          = rmnet_usb_bind,
 	.tx_fixup      = rmnet_usb_tx_fixup,
 	.rx_fixup      = rmnet_usb_rx_fixup,

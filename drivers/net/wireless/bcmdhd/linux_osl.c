@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: linux_osl.c 361207 2012-10-06 05:59:08Z $
+ * $Id: linux_osl.c 425656 2013-09-25 03:24:00Z $
  */
 
 #define LINUX_PORT
@@ -34,10 +34,6 @@
 #include <bcmutils.h>
 #include <linux/delay.h>
 #include <pcicfg.h>
-
-#ifdef BCMASSERT_LOG
-#include <bcm_assert_log.h>
-#endif
 
 
 #include <linux/fs.h>
@@ -189,7 +185,8 @@ osl_attach(void *pdev, uint bustype, bool pkttag)
 {
 	osl_t *osh;
 
-	osh = kmalloc(sizeof(osl_t), GFP_ATOMIC);
+	if (!(osh = kmalloc(sizeof(osl_t), GFP_ATOMIC)))
+		return osh;
 
 	ASSERT(osh);
 
@@ -603,6 +600,12 @@ osl_pktfree(osl_t *osh, void *p, bool send)
 	struct sk_buff *skb, *nskb;
 	unsigned long flags;
 
+	if (osh == NULL)
+	{
+		printk("%s: osh == NULL \n", __FUNCTION__);
+		return;
+	}
+
 	skb = (struct sk_buff*) p;
 
 	if (send && osh->pub.tx_fn)
@@ -748,6 +751,28 @@ osl_pktfree_static(osl_t *osh, void *p, bool send)
 	return;
 }
 #endif 
+
+int osh_pktpadtailroom(osl_t *osh, struct sk_buff* skb, int pad)
+{
+	int err;
+	int ntail;
+
+	ntail = skb->data_len + pad - (skb->end - skb->tail);
+	if (likely(skb_cloned(skb) || ntail > 0)) {
+		err = pskb_expand_head(skb, 0, ntail, GFP_ATOMIC);
+		if (unlikely(err))
+			goto done;
+	}
+
+	err = skb_linearize(skb);
+	if (unlikely(err))
+		goto done;
+
+	memset(skb->data + skb->len, 0, pad);
+
+done:
+	return err;
+}
 
 uint32
 osl_pci_read_config(osl_t *osh, uint offset, uint size)
@@ -997,12 +1022,10 @@ osl_assert(const char *exp, const char *file, int line)
 	if (!basename)
 		basename = file;
 
-#ifdef BCMASSERT_LOG
 	snprintf(tempbuf, 64, "\"%s\": file \"%s\", line %d\n",
 		exp, basename, line);
 
-	bcm_assert_log(tempbuf);
-#endif 
+	printk("%s", tempbuf);
 
 
 }
@@ -1018,6 +1041,17 @@ osl_delay(uint usec)
 		udelay(d);
 		usec -= d;
 	}
+}
+
+void
+osl_sleep(uint ms)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+	if (ms < 20)
+		usleep_range(ms*1000, ms*1000 + 1000);
+	else
+#endif
+	msleep(ms);
 }
 
 

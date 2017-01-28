@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: bcmsdh_sdmmc_linux.c 363783 2012-10-19 06:27:14Z $
+ * $Id: bcmsdh_sdmmc_linux.c 425714 2013-09-25 06:43:11Z $
  */
 
 #include <typedefs.h>
@@ -136,6 +136,8 @@ static int bcmsdh_sdmmc_probe(struct sdio_func *func,
 	#endif
 			sd_trace(("F2 found, calling bcmsdh_probe...\n"));
 			ret = bcmsdh_probe(&func->dev);
+			if (ret < 0 && gInstance)
+				gInstance->func[2] = NULL;
 		}
 	} else {
 		ret = -ENODEV;
@@ -263,6 +265,10 @@ static struct semaphore *notify_semaphore = NULL;
 static int dummy_probe(struct sdio_func *func,
                               const struct sdio_device_id *id)
 {
+	if (func && (func->num != 2)) {
+		return 0;
+	}
+
 	if (notify_semaphore)
 		up(notify_semaphore);
 	return 0;
@@ -287,6 +293,7 @@ int sdio_func_reg_notify(void* semaphore)
 
 void sdio_func_unreg_notify(void)
 {
+	OSL_SLEEP(15);
 	sdio_unregister_driver(&dummy_sdmmc_driver);
 }
 
@@ -297,13 +304,11 @@ static struct sdio_driver bcmsdh_sdmmc_driver = {
 	.remove		= bcmsdh_sdmmc_remove,
 	.name		= "bcmsdh_sdmmc",
 	.id_table	= bcmsdh_sdmmc_ids,
-#if !defined(CONFIG_ARCH_RHEA) || !defined(CONFIG_ARCH_CAPRI)
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 39)) && defined(CONFIG_PM)
 	.drv = {
 	.pm	= &bcmsdh_sdmmc_pm_ops,
 	},
 #endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 39)) && defined(CONFIG_PM) */
-#endif /* !defined(CONFIG_ARCH_RHEA) || !defined(CONFIG_ARCH_CAPRI) */
 	};
 
 struct sdos_info {

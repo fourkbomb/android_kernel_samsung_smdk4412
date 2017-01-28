@@ -17,6 +17,9 @@
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef _LINUX_WACOM_I2C_TABLE_T0CHNCTC_H
+#define _LINUX_WACOM_I2C_TABLE_T0CHNCTC_H
+
 short TblX_CCW_LLeft_44[] = {
 #include "table/t0chnctc/wacom_i2c_tblX_CCW_LLeft_T0.h"
 };
@@ -49,18 +52,11 @@ short TblY_PRight_44[] = {
 /* 0: Left, 1: Right */
 /* 0: Portrait 0, 1: Landscape 90, 2: Portrait 180 3: Landscape 270*/
 short tilt_offsetX[MAX_HAND][MAX_ROTATION] = \
-	{{-10, -15, 20, 50, }, {50, -10, -15, 20, } };
+	{{-10, -15, 20, 30, }, {30, -10, -15, 20, } };
 short tilt_offsetY[MAX_HAND][MAX_ROTATION] = \
 	{{0, -70, -60, 0, }, {0, 0, -70, -60, }};
 
-char* tuning_version = "0926";
+char *tuning_version = "0928";
 char *tuning_model = "N719";
 
-/* Distance Offset Table
-short *tableX[MAX_HAND][MAX_ROTATION] = \
-	{{TblX_PLeft_44, TblX_CCW_LLeft_44, TblX_CW_LRight_44, TblX_PRight_44},
-	{TblX_PRight_44, TblX_PLeft_44, TblX_CCW_LLeft_44, TblX_CW_LRight_44} };
-
-short *tableY[MAX_HAND][MAX_ROTATION] = \
-	{{TblY_PLeft_44, TblY_CCW_LLeft_44, TblY_CW_LRight_44, TblY_PRight_44},
-	{TblY_PRight_44, TblY_PLeft_44, TblY_CCW_LLeft_44, TblY_CW_LRight_44} }; */
+#endif /* _LINUX_WACOM_I2C_TABLE_T0CHNCTC_H */

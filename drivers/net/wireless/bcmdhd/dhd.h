@@ -24,7 +24,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd.h 363319 2012-10-17 04:44:07Z $
+ * $Id: dhd.h 426576 2013-09-30 06:14:46Z $
  */
 
 /****************
@@ -58,7 +58,6 @@ int setScheduler(struct task_struct *p, int policy, struct sched_param *param);
 #include <wlioctl.h>
 #include <wlfc_proto.h>
 
-#include <dhd_sec_feature.h>
 
 #if defined(CUSTOMER_HW4_RELEASE)
 /* Customer requirement */
@@ -93,10 +92,13 @@ enum dhd_op_flags {
 
 #define MANUFACTRING_FW 	"WLTEST"
 
-/* max sequential rxcntl timeouts to set HANG event */
-#ifndef MAX_CNTL_TIMEOUT
-#define MAX_CNTL_TIMEOUT  2
-#endif
+/* max sequential TX/RX control timeouts to set HANG event */
+#ifndef MAX_CNTL_TX_TIMEOUT
+#define MAX_CNTL_TX_TIMEOUT  2
+#endif /* MAX_CNTL_TX_TIMEOUT */
+#ifndef MAX_CNTL_RX_TIMEOUT
+#define MAX_CNTL_RX_TIMEOUT  1
+#endif /* MAX_CNTL_RX_TIMEOUT */
 
 #define DHD_SCAN_ASSOC_ACTIVE_TIME	40 /* ms: Embedded default Active setting from DHD */
 #define DHD_SCAN_UNASSOC_ACTIVE_TIME 80 /* ms: Embedded def. Unassoc Active setting from DHD */
@@ -286,11 +288,22 @@ typedef struct dhd_pub {
 	uint8 htsfdlystat_sz; /* Size of delay stats, max 255B */
 #endif
 	struct reorder_info *reorder_bufs[WLHOST_REORDERDATA_MAXFLOWS];
+#if defined(RXFRAME_THREAD) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 39))
+#define MAXSKBPEND 1024
+	void *skbbuf[MAXSKBPEND];
+	uint32 store_idx;
+	uint32 sent_idx;
+#endif /* RXFRAME_THREAD && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 39)) */
 #if defined(ARP_OFFLOAD_SUPPORT)
 	uint32 arp_version;
 #endif
+#if defined(CUSTOMER_HW4)
+	bool dhd_bug_on;
+#endif
 } dhd_pub_t;
-
+#if defined(CUSTOMER_HW4)
+#define MAX_RESCHED_CNT 600
+#endif
 
 	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(CONFIG_PM_SLEEP)
 
@@ -349,6 +362,11 @@ typedef struct dhd_pub {
 #undef	SPINWAIT_SLEEP
 #define SPINWAIT_SLEEP(a, exp, us) SPINWAIT(exp, us)
 #endif /* DHDTHREAD */
+
+#ifndef OSL_SLEEP
+#define OSL_SLEEP(ms)		OSL_DELAY(ms*1000)
+#endif /* OSL_SLEEP */
+
 #define DHD_IF_VIF	0x01	/* Virtual IF (Hidden from user) */
 
 unsigned long dhd_os_spin_lock(dhd_pub_t *pub);
@@ -543,6 +561,7 @@ extern int dhd_dev_get_pno_status(struct net_device *dev);
 #define DHD_MULTICAST4_FILTER_NUM	2
 #define DHD_MULTICAST6_FILTER_NUM	3
 #define DHD_MDNS_FILTER_NUM			4
+#define DHD_ARP_FILTER_NUM		5
 extern int 	dhd_os_enable_packet_filter(dhd_pub_t *dhdp, int val);
 extern void 	dhd_enable_packet_filter(int value, dhd_pub_t *dhd);
 extern int 	net_os_enable_packet_filter(struct net_device *dev, int val);
@@ -685,15 +704,11 @@ extern uint dhd_sdiod_drive_strength;
 /* Override to force tx queueing all the time */
 extern uint dhd_force_tx_queueing;
 /* Default KEEP_ALIVE Period is 55 sec to prevent AP from sending Keep Alive probe frame */
-#if defined(CUSTOMER_HW4)
-#ifdef KEEP_ALIVE_PACKET_PERIOD_30_SEC
-#define KEEP_ALIVE_PERIOD 30000
-#else /* KEEP_ALIVE_PACKET_PERIOD_30_SEC */
-#define KEEP_ALIVE_PERIOD 55000
-#endif /* KEEP_ALIVE_PACKET_PERIOD_30_SEC */
-#else
-#define KEEP_ALIVE_PERIOD 55000
-#endif /* CUSTOMER_HW4 */
+#define DEFAULT_KEEP_ALIVE_VALUE 	55000 /* msec */
+#ifndef CUSTOM_KEEP_ALIVE_SETTING
+#define CUSTOM_KEEP_ALIVE_SETTING 	DEFAULT_KEEP_ALIVE_VALUE
+#endif /* DEFAULT_KEEP_ALIVE_VALUE */
+
 #define NULL_PKT_STR	"null_pkt"
 
 /* hooks for custom glom setting option via Makefile */
@@ -727,6 +742,17 @@ extern uint dhd_force_tx_queueing;
 #ifndef CUSTOM_SUSPEND_BCN_LI_DTIM
 #define CUSTOM_SUSPEND_BCN_LI_DTIM		DEFAULT_SUSPEND_BCN_LI_DTIM
 #endif
+
+#if defined(RXFRAME_THREAD) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 39))
+#ifndef CUSTOM_RXF_PRIO_SETTING
+#define CUSTOM_RXF_PRIO_SETTING		MAX((CUSTOM_DPC_PRIO_SETTING - 1), 1)
+#endif
+#endif /* defined(RXFRAME_THREAD) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 39)) */
+
+#define DEFAULT_WIFI_TURNOFF_DELAY		0
+#ifndef WIFI_TURNOFF_DELAY
+#define WIFI_TURNOFF_DELAY		DEFAULT_WIFI_TURNOFF_DELAY
+#endif /* WIFI_TURNOFF_DELAY */
 
 #ifdef SDTEST
 /* Echo packet generator (SDIO), pkts/s */
@@ -930,4 +956,20 @@ dhd_write_rdwr_korics_macaddr(struct dhd_info *dhd, struct ether_addr *mac);
 #if defined(SUPPORT_MULTIPLE_REVISION)
 extern int concate_revision(struct dhd_bus *bus, char *path, int path_len);
 #endif /* SUPPORT_MULTIPLE_REVISION */
+
+#if defined(CUSTOMER_HW4) && defined(USE_WFA_CERT_CONF)
+enum {
+	SET_PARAM_BUS_TXGLOM_MODE,
+	SET_PARAM_ROAMOFF,
+#ifdef USE_WL_FRAMEBURST
+	SET_PARAM_FRAMEBURST,
+#endif /* USE_WL_FRAMEBURST */
+#ifdef USE_WL_TXBF
+	SET_PARAM_TXBF,
+#endif /* USE_WL_TXBF */
+	PARAM_LAST_VALUE
+};
+extern int sec_get_param(dhd_pub_t *dhd, int mode);
+#endif /* CUSTOMER_HW4 && USE_WFA_CERT_CONF */
+
 #endif /* _dhd_h_ */

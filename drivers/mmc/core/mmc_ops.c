@@ -556,7 +556,7 @@ int mmc_bus_test(struct mmc_card *card, u8 bus_width)
 }
 
 static int mmc_send_cmd(struct mmc_host *host,
-			u32 opcode, u32 arg, unsigned int flags, u32 *resp)
+		u32 opcode, u32 arg, unsigned int flags, u32 *resp)
 {
 	int err;
 	struct mmc_command cmd;
@@ -589,15 +589,15 @@ static int mmc_movi_cmd(struct mmc_host *host, u32 arg)
 	if (!err)
 		do {
 			err = mmc_send_cmd(host, MMC_SEND_STATUS,
-				host->card->rca << 16,
-				MMC_RSP_SPI_R2 | MMC_RSP_R1 | MMC_CMD_AC,
-				&resp);
+					host->card->rca << 16,
+					MMC_RSP_SPI_R2 | MMC_RSP_R1 | MMC_CMD_AC,
+					&resp);
 			if (err) {
 				printk(KERN_ERR "CMD13(VC) failed\n");
 				break;
-				}
+			}
 			/*wait until READY_FOR_DATA*/
-			} while (!(resp & 1<<8));
+		} while (!(resp & 1<<8));
 
 	return err;
 }
@@ -608,36 +608,36 @@ static int mmc_movi_erase_cmd(struct mmc_host *host, u32 arg1, u32 arg2)
 	u32 resp;
 
 	err = mmc_send_cmd(host, MMC_ERASE_GROUP_START, arg1,
-					MMC_RSP_R1 | MMC_CMD_AC, &resp);
+			MMC_RSP_R1 | MMC_CMD_AC, &resp);
 	if (err)
 		return err;
 
 	err = mmc_send_cmd(host, MMC_ERASE_GROUP_END, arg2,
-					MMC_RSP_R1 | MMC_CMD_AC, &resp);
+			MMC_RSP_R1 | MMC_CMD_AC, &resp);
 	if (err)
 		return err;
 
 	err = mmc_send_cmd(host, MMC_ERASE, 0,
-					MMC_RSP_R1B | MMC_CMD_AC, &resp);
+			MMC_RSP_R1B | MMC_CMD_AC, &resp);
 	if (!err)
 		do {
 			err = mmc_send_cmd(host, MMC_SEND_STATUS,
-				host->card->rca << 16,
-				MMC_RSP_SPI_R2 | MMC_RSP_R1 | MMC_CMD_AC,
-				&resp);
+					host->card->rca << 16,
+					MMC_RSP_SPI_R2 | MMC_RSP_R1 | MMC_CMD_AC,
+					&resp);
 			if (err) {
 				printk(KERN_ERR "CMD13(VC) failed\n");
 				break;
-				}
+			}
 			/*wait until READY_FOR_DATA*/
-			} while (!(resp & 1<<8));
+		} while (!(resp & 1<<8));
 
 	return err;
 }
 
 
 static int mmc_movi_read_req(struct mmc_card *card,
-					void *data_buf, u32 arg, u32 blocks)
+		void *data_buf, u32 arg, u32 blocks)
 {
 	struct mmc_request mrq = {0};
 	struct mmc_command cmd = {0};
@@ -652,6 +652,7 @@ static int mmc_movi_read_req(struct mmc_card *card,
 		cmd.opcode = MMC_READ_MULTIPLE_BLOCK;
 	else
 		cmd.opcode = MMC_READ_SINGLE_BLOCK;
+
 	cmd.arg = arg;
 
 	cmd.flags = MMC_RSP_SPI_R1 | MMC_RSP_R1 | MMC_CMD_ADTC;
@@ -677,41 +678,63 @@ static int mmc_movi_read_req(struct mmc_card *card,
 	return 0;
 }
 
+#define MOVI_CONT_VHX0	0x56485830	// VHX0
+#define MOVI_CONT_VHX2	0x56483230	// VH20
+#define MOVI_CONT_VMX0	0x564D5830	// VMX0
+
 int mmc_start_movi_smart(struct mmc_card *card)
 {
-	int err;
+	int ret;
 	u8 data_buf[512];
 	u32 date = 0;
+	u32 old_date = 0;
+	u32 movi_ver = 0;
 
-	err = mmc_movi_cmd(card->host, 0xEFAC62EC);
-	if (err)
-		return err;
+	ret = mmc_movi_cmd(card->host, 0xEFAC62EC);
+	if (ret)
+		return ret;
 
-	err = mmc_movi_cmd(card->host, 0x0000CCEE);
-	if (err)
-		return err;
+	ret = mmc_movi_cmd(card->host, 0x0000CCEE);
+	if (ret)
+		return ret;
 
-	err = mmc_movi_read_req(card, (void *)data_buf, 0x1000, 1);
-	if (err)
-		return err;
+	ret = mmc_movi_read_req(card, (void *)data_buf, 0x1000, 1);
+	if (ret)
+		return ret;
 
-	err = mmc_movi_cmd(card->host, 0xEFAC62EC);
-	if (err)
-		return err;
+	ret = mmc_movi_cmd(card->host, 0xEFAC62EC);
+	if (ret)
+		return ret;
 
-	err = mmc_movi_cmd(card->host, 0x00DECCEE);
-	if (err)
-		return err;
+	ret = mmc_movi_cmd(card->host, 0x00DECCEE);
+	if (ret)
+		return ret;
+
+	movi_ver = ((data_buf[312] << 24) | (data_buf[313] << 16) |
+			(data_buf[314] << 8) | data_buf[315]);
+
+	if (movi_ver == MOVI_CONT_VMX0)
+		ret = MMC_MOVI_VER_VMX0;
+	else if (movi_ver == MOVI_CONT_VHX0)
+		ret = MMC_MOVI_VER_VHX0;
+	else if (movi_ver == MOVI_CONT_VHX2)
+		ret = MMC_MOVI_VER_VHX2;
+	else
+		ret = 0x0;
 
 	date = ((data_buf[327] << 24) | (data_buf[326] << 16) |
-				(data_buf[325] << 8) | data_buf[324]);
+			(data_buf[325] << 8) | data_buf[324]);
 
-	if (date !=  0x20120413) {
-		err = -1;
-		return err;
-		}
+	card->movi_fwver = data_buf[320];
+	card->movi_fwdate = date;
 
-	return 0x2;
+	old_date =  ((data_buf[351] << 24) | (data_buf[350] << 16) |
+			(data_buf[349] << 8) | data_buf[348]);
+
+	pr_info("%s : %02x : %02x : %08x : %x.\n", mmc_hostname(card->host),
+			ret, card->movi_fwver, card->movi_fwdate, old_date);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(mmc_start_movi_smart);
 

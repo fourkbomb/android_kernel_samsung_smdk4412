@@ -279,6 +279,10 @@ struct ecryptfs_crypt_stat {
 #define ECRYPTFS_ENCFN_USE_FEK        0x00001000
 #define ECRYPTFS_UNLINK_SIGS          0x00002000
 #define ECRYPTFS_I_SIZE_INITIALIZED   0x00004000
+#ifdef CONFIG_WTL_ENCRYPTION_FILTER
+#define ECRYPTFS_ENCRYPTED_OTHER_DEVICE 0x00008000
+#endif
+
 	u32 flags;
 	unsigned int file_version;
 	size_t iv_bytes;
@@ -403,9 +407,9 @@ struct ecryptfs_mount_crypt_stat {
 #ifdef CONFIG_WTL_ENCRYPTION_FILTER
 	int max_name_filter_len;
 	char enc_filter_name[ENC_NAME_FILTER_MAX_INSTANCE]
-				[ENC_NAME_FILTER_MAX_LEN];
+				[ENC_NAME_FILTER_MAX_LEN + 1];
 	char enc_filter_ext[ENC_EXT_FILTER_MAX_INSTANCE]
-				[ENC_EXT_FILTER_MAX_LEN];
+				[ENC_EXT_FILTER_MAX_LEN + 1];
 #endif
 
 };
@@ -673,9 +677,10 @@ int ecryptfs_init_crypt_ctx(struct ecryptfs_crypt_stat *crypt_stat);
 int ecryptfs_write_inode_size_to_metadata(struct inode *ecryptfs_inode);
 int ecryptfs_encrypt_page(struct page *page);
 int ecryptfs_decrypt_page(struct page *page);
-int ecryptfs_write_metadata(struct dentry *ecryptfs_dentry);
+int ecryptfs_write_metadata(struct dentry *ecryptfs_dentry,
+			    struct inode *ecryptfs_inode);
 int ecryptfs_read_metadata(struct dentry *ecryptfs_dentry);
-int ecryptfs_new_file_context(struct dentry *ecryptfs_dentry);
+int ecryptfs_new_file_context(struct inode *ecryptfs_inode);
 void ecryptfs_write_crypt_stat_flags(char *page_virt,
 				     struct ecryptfs_crypt_stat *crypt_stat,
 				     size_t *written);
