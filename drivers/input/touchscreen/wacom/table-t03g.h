@@ -58,6 +58,6 @@ short tilt_offsetX_B713[MAX_HAND][MAX_ROTATION] = \
 short tilt_offsetY_B713[MAX_HAND][MAX_ROTATION] = \
 	{{-90, 120, 100, -80, }, {-80, -90, 120, 100, } };
 
-char* tuning_version = "0910";
+char* tuning_version = "0912";
 char *tuning_version_B713 = "0730";
 char *tuning_model = "N7100";

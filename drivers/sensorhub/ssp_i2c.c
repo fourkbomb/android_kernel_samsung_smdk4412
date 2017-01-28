@@ -74,7 +74,7 @@ int ssp_i2c_read(struct ssp_data *data, char *pTxData, u16 uTxLength,
 			iTimeTemp = (int)cur_time.tv_sec;
 			if (iTimeTemp >= 4) {
 				pr_err("[SSP]: %s - i2c time out %d!\n",
-					__func__, iTimeTemp);
+					__func__, iDiffTime);
 				break;
 			}
 			pr_err("[SSP]: %s - i2c transfer error %d! retry...\n",
