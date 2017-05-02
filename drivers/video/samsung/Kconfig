@@ -110,12 +110,26 @@ config FB_EBOOK_PANEL_SCENARIO
 	depends on FB_S5P_MDNIE
 	default n
 
-config FB_MDNIE_RGB_ADJUST
-	bool "Samsung MDNIE RGB adjustment support"
+config FB_MDNIE_ADJUST
+	bool "Samsung MDNIE sysfs tunables"
 	depends on FB_S5P_MDNIE
 	default n
 	---help---
+	This enables support for various sysfs tunables
+
+config FB_MDNIE_RGB_ADJUST
+	bool "Samsung MDNIE RGB adjustment support"
+	depends on FB_MDNIE_ADJUST
+	default n
+	---help---
 	This enables support for scaling the display's RGB values in hardware
+
+config FB_MDNIE_OUTDOOR
+	bool "Samsung MDNIE Outdoor mode support"
+	depends on FB_MDNIE_ADJUST
+	default n
+	---help---
+	This enables support for increasing contrast to enable "outdoor" mode
 
 config FB_S5P_MIPI_DSIM
 	bool "Samsung MIPI DSIM"

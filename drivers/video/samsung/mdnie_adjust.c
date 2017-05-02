@@ -14,10 +14,11 @@
 #include <linux/mdnie.h>
 #include <linux/platform_device.h>
 
-#include "mdnie_rgb_adj.h"
+#include "mdnie_adjust.h"
 #include "s3cfb.h"
 #include "s3cfb_mdnie.h"
 
+#ifdef CONFIG_FB_MDNIE_RGB_ADJUST
 static inline u8 mdnie_scale_value(u8 val, u8 adj) {
 	int big = val * adj;
 	return big / 255;
@@ -62,7 +63,6 @@ u16 mdnie_rgb_hook(struct mdnie_info *mdnie, int reg, int val) {
 	u16 res;
 
 	if (!mdnie->rgb_adj_enable) {
-		dev_info(mdnie->dev, "rgb adjustment disabled!\n");
 		return val;
 	}
 
@@ -90,7 +90,6 @@ void mdnie_send_rgb(struct mdnie_info *mdnie) {
 	int i = 0;
 
 	if (!mdnie->rgb_adj_enable) {
-		dev_info(mdnie->dev, "rgb adjustment disabled!\n");
 		return;
 	}
 
@@ -100,12 +99,63 @@ void mdnie_send_rgb(struct mdnie_info *mdnie) {
 		i += 2;
 	}
 }
+#endif // CONFIG_FB_MDNIE_RGB_ADJUST
+
+#ifdef CONFIG_FB_MDNIE_OUTDOOR
+void mdnie_send_outdoor(struct mdnie_info *mdnie) {
+	int i = 0;
+	while (mdnie_outdoor_default[i] != END_SEQ) {
+		mdnie_write(mdnie_outdoor_default[i], mdnie_outdoor_default[i+1]);
+		i += 2;
+	}
+}
+#endif
 
 unsigned short mdnie_effect_master_hook(struct mdnie_info *mdnie, unsigned short val) {
+#ifdef CONFIG_FB_MDNIE_RGB_ADJUST
 	if (mdnie->r_adj != 255 || mdnie->g_adj != 255 || mdnie->b_adj != 255) {
 		val |= MDNIE_SCR_MASK;
 	}
+#endif
+#ifdef CONFIG_FB_MDNIE_OUTDOOR
+	if (mdnie->outdoor_enable) {
+		val |= MDNIE_OUTDOOR_MASK;
+	}
+#endif
 
 	return val;
 }
 
+void mdnie_setup_adjust(struct mdnie_adjust *adj) {
+#ifdef CONFIG_FB_MDNIE_RGB_ADJUST
+	adj->applied_rgb = false;
+#endif
+#ifdef CONFIG_FB_MDNIE_OUTDOOR
+	adj->applied_outdoor = false
+#endif
+}
+
+unsigned short mdnie_hook(struct mdnie_info *mdnie, struct mdnie_adjust *adj, unsigned short reg, unsigned short val) {
+	if (reg == MDNIE_EFFECT_MASTER) {
+		return mdnie_effect_master_hook(mdnie, val);
+	}
+#ifdef CONFIG_FB_MDNIE_RGB_ADJUST
+	if (reg >= MDNIE_SCR_START && reg <= MDNIE_SCR_END) {
+		adj->applied_rgb = true;
+		return mdnie_rgb_hook(mdnie_rgb_hook(mdnie, reg, val));
+	} else if (!adj->applied_rgb && reg > MDNIE_SCR_END) {
+		mdnie_send_rgb(mdnie);
+		adj->applied_rgb = true;
+	}
+#endif
+#ifdef CONFIG_FB_MDNIE_OUTDOOR
+	if (reg >= MDNIE_OUTDOOR_START && reg <= MDNIE_OUTDOOR_END) {
+		adj->applied_outdoor = true;
+		return val | GET_OUTDOOR_VALUE(reg); // TODO: is this what we want, or should we just override this?
+	} else if (!adj->applied_outdoor && reg > MDNIE_OUTDOOR_END) {
+		mdnie_send_outdoor(mdnie);
+		adj->applied_outdoor = true;
+	}
+#endif
+	return val;
+}
