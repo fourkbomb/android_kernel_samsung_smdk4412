@@ -114,6 +114,9 @@ struct mdnie_info {
 	u8 b_adj;
 	bool rgb_adj_enable;
 #endif
+#ifdef CONFIG_FB_MDNIE_OUTDOOR
+    bool outdoor_enable;
+#endif
 };
 
 extern struct mdnie_info *g_mdnie;
