@@ -163,17 +163,7 @@ ccflags-y += -I$(srctree)/$(src)/../ump/include -I$(srctree)/$(src)/include/linu
 # Get subversion revision number, fall back to only ${MALI_RELEASE_NAME} if no svn info is available
 MALI_RELEASE_NAME=$(shell cat $(srctree)/$(src)/.version 2> /dev/null)
 
-SVN_INFO = (cd $(srctree)/$(src); svn info 2>/dev/null)
 
-ifneq ($(shell $(SVN_INFO) 2>/dev/null),)
-# SVN detected
-SVN_REV := $(shell $(SVN_INFO) | grep '^Revision: '| sed -e 's/^Revision: //' 2>/dev/null)
-DRIVER_REV := $(MALI_RELEASE_NAME)-r$(SVN_REV)
-CHANGE_DATE := $(shell $(SVN_INFO) | grep '^Last Changed Date: ' | cut -d: -f2- | cut -b2-)
-CHANGED_REVISION := $(shell $(SVN_INFO) | grep '^Last Changed Rev: ' | cut -d: -f2- | cut -b2-)
-REPO_URL := $(shell $(SVN_INFO) | grep '^URL: ' | cut -d: -f2- | cut -b2-)
-
-else # SVN
 GIT_REV := $(shell cd $(srctree)/$(src); git describe --always 2>/dev/null)
 ifneq ($(GIT_REV),)
 # Git detected
@@ -187,7 +177,6 @@ else # Git
 DRIVER_REV := $(MALI_RELEASE_NAME)
 CHANGE_DATE := $(MALI_RELEASE_NAME)
 CHANGED_REVISION := $(MALI_RELEASE_NAME)
-endif
 endif
 
 ccflags-y += -DSVN_REV_STRING=\"$(DRIVER_REV)\"

@@ -33,7 +33,7 @@ static inline struct vfsmount *next_slave(struct vfsmount *p)
  *
  * namespace_sem is held, and mnt is attached
  */
-static bool is_path_reachable(struct vfsmount *mnt, struct dentry *dentry,
+bool is_path_reachable(struct vfsmount *mnt, struct dentry *dentry,
 			 const struct path *root)
 {
 	while (mnt != root->mnt && mnt->mnt_parent != mnt) {
