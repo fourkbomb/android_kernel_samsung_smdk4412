@@ -49,6 +49,10 @@ static int is_first_resume = 1;
 /*Store the clk and vol for boot/insmod and mali_resume*/
 static struct mali_gpu_clk_item mali_gpu_clk[2];
 #endif
+/* MALI_SEC */
+#if defined(CONFIG_CPU_EXYNOS4210) || defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
+#include "../platform/pegasus-m400/exynos4_pmm.h"
+#endif
 
 /* Streamline support for the Mali driver */
 #if defined(CONFIG_TRACEPOINTS) && defined(CONFIG_MALI400_PROFILING)
@@ -556,6 +560,8 @@ static int mali_driver_suspend_scheduler(struct device *dev)
 				      0,
 				      0,
 				      0, 0, 0);
+	/* MALI_SEC */
+	mali_platform_power_mode_change(dev, MALI_POWER_MODE_DEEP_SLEEP);
 	return 0;
 }
 
@@ -575,6 +581,8 @@ static int mali_driver_resume_scheduler(struct device *dev)
 				      mali_gpu_clk[1].vol / 1000,
 				      0, 0, 0);
 #endif
+	/* MALI_SEC */
+	mali_platform_power_mode_change(dev, MALI_POWER_MODE_ON);
 	mali_pm_os_resume();
 	return 0;
 }
@@ -583,6 +591,8 @@ static int mali_driver_resume_scheduler(struct device *dev)
 static int mali_driver_runtime_suspend(struct device *dev)
 {
 	if (MALI_TRUE == mali_pm_runtime_suspend()) {
+		/* MALI_SEC */
+		mali_platform_power_mode_change(dev, MALI_POWER_MODE_LIGHT_SLEEP);
 		/* Tracing the frequency and voltage after mali is suspended */
 		_mali_osk_profiling_add_event(MALI_PROFILING_EVENT_TYPE_SINGLE |
 					      MALI_PROFILING_EVENT_CHANNEL_GPU |
@@ -613,7 +623,8 @@ static int mali_driver_runtime_resume(struct device *dev)
 				      mali_gpu_clk[1].vol / 1000,
 				      0, 0, 0);
 #endif
-
+	/* MALI_SEC */
+	mali_platform_power_mode_change(dev, MALI_POWER_MODE_ON);
 	mali_pm_runtime_resume();
 	return 0;
 }
