@@ -18,7 +18,7 @@
 
 #include "mali_osk_types.h"
 
-#define MALI_GPU_NAME_UTGARD "mali-utgard"
+#define MALI_GPU_NAME_UTGARD "mali_dev"
 
 
 #define MALI_OFFSET_GP                    0x00000

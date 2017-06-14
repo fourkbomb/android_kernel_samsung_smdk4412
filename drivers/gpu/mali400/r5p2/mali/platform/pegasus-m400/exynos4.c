@@ -14,6 +14,7 @@
  * @file exynos4.c
  * Platform specific Mali driver functions for the exynos 4XXX based platforms
  */
+#include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/version.h>
 #include <linux/pm.h>
@@ -149,6 +150,8 @@ static struct platform_device mali_gpu_device =
 	.dev.parent = &s5pv310_device_pd[PD_G3D].dev,
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0) */
 	.dev.release = mali_platform_device_release,
+	.dev.coherent_dma_mask = DMA_BIT_MASK(32),
+	.dev.dma_mask = &mali_gpu_device.dev.coherent_dma_mask,
 #if 0
 	/*
 	 * We temporarily make use of a device type so that we can control the Mali power
