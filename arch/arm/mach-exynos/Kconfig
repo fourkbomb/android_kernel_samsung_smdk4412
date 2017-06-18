@@ -183,7 +183,7 @@ config EXYNOS4_SETUP_DP
 	  Common setup code for DP.
 
 config EXYNOS_DEV_SYSMMU
-	bool
+	bool "Exynos modern SYSMMU"
 	help
 	  Common setup code for SYSTEM MMU in EXYNOS
 

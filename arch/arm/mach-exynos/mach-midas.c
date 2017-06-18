@@ -3726,7 +3726,7 @@ static struct platform_device *midas_devices[] __initdata = {
 #if defined(CONFIG_VIDEO_MFC5X) || defined(CONFIG_VIDEO_SAMSUNG_S5P_MFC)
 	&s5p_device_mfc,
 #endif
-#ifdef CONFIG_S5P_SYSTEM_MMU
+#if defined(CONFIG_S5P_SYSTEM_MMU) || defined(CONFIG_EXYNOS_DEV_SYSMMU)
 	&SYSMMU_PLATDEV(g2d_acp),
 	&SYSMMU_PLATDEV(fimc0),
 	&SYSMMU_PLATDEV(fimc1),
