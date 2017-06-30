@@ -458,7 +458,7 @@ static int __init oops_setup(char *s)
 	if (!s)
 		return -EINVAL;
 	if (!strcmp(s, "panic"))
-		panic_on_oops = 1;
+		panic_on_oops = 0;
 	return 0;
 }
 early_param("oops", oops_setup);
