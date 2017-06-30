@@ -28,6 +28,9 @@
 
 #include <mach/sysmmu.h>
 
+#include <linux/debugfs.h>
+struct dentry *debug_dir;
+
 #include "exynos-iommu.h"
 
 /* We does not consider super section mapping (16MB) */
@@ -140,6 +143,29 @@ struct exynos_iommu_domain {
 	spinlock_t lock; /* lock for this structure */
 	spinlock_t pgtablelock; /* lock for modifying page table @ pgtable */
 };
+
+#define DBG_REG(a) { .name = #a, .offset = a }
+#define NUM_REGS 17
+static struct debugfs_reg32 dbg_regs[NUM_REGS] = {
+	DBG_REG(REG_MMU_CTRL),
+	DBG_REG(REG_MMU_CFG),
+	DBG_REG(REG_MMU_STATUS),
+	DBG_REG(REG_MMU_FLUSH),
+	DBG_REG(REG_MMU_FLUSH_ENTRY),
+	DBG_REG(REG_PT_BASE_ADDR),
+	DBG_REG(REG_INT_STATUS),
+	DBG_REG(REG_INT_CLEAR),
+	DBG_REG(REG_PAGE_FAULT_ADDR),
+	DBG_REG(REG_AW_FAULT_ADDR),
+	DBG_REG(REG_AR_FAULT_ADDR),
+	DBG_REG(REG_DEFAULT_SLAVE_ADDR),
+	DBG_REG(REG_MMU_VERSION),
+	DBG_REG(REG_PB0_SADDR),
+	DBG_REG(REG_PB0_EADDR),
+	DBG_REG(REG_PB1_SADDR),
+	DBG_REG(REG_PB1_EADDR),
+};
+#undef DBG_REG
 
 static bool set_sysmmu_active(struct sysmmu_drvdata *data)
 {
@@ -554,6 +580,9 @@ static int exynos_sysmmu_probe(struct platform_device *pdev)
 		goto err_init;
 	}
 
+	if (debug_dir == NULL)
+		debug_dir = debugfs_create_dir("sysmmu", NULL);
+
 	for (i = 0; i < data->nsfrs; i++) {
 		struct resource *res;
 		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
@@ -570,6 +599,18 @@ static int exynos_sysmmu_probe(struct platform_device *pdev)
 			ret = -ENOENT;
 			goto err_res;
 		}
+		if (i == 0) {
+			data->dbgdir = debugfs_create_dir(res->name, debug_dir);
+			data->regset = kmalloc(sizeof(*data->regset), GFP_KERNEL);
+			if (data->regset) {
+				data->regset->regs = dbg_regs;
+				data->regset->nregs = NUM_REGS;
+				data->regset->base = data->sfrbases[0];
+				data->reg_dent = debugfs_create_regset32("regs", S_IRUSR, data->dbgdir, data->regset);
+			}
+		}
+
+		dev_err(dev, "Mapped IOMEM '%s' @ PA:%#x\n", res->name, res->start);
 	}
 
 	for (i = 0; i < data->nsfrs; i++) {

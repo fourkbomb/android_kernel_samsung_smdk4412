@@ -88,6 +88,7 @@ dma_addr_t iovmm_map(struct device *dev, struct scatterlist *sg, off_t offset,
 #endif
 	if (!start) {
 		ret = -ENOMEM;
+		dev_err(dev, "failed to gen_pool_alloc\n");
 		goto err_map_nomem_lock;
 	}
 

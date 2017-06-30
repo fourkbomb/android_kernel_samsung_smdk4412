@@ -51,6 +51,10 @@ struct sysmmu_drvdata {
 	struct iommu_domain *domain; /* domain given to iommu_attach_device() */
 	sysmmu_fault_handler_t fault_handler;
 	unsigned long pgtable;
+	struct dentry *dbgdir;
+	struct debugfs_regset32 *regset;
+	struct dentry *reg_dent;
+
 #ifdef CONFIG_EXYNOS_IOVMM
 	struct exynos_iovmm vmm;
 #endif
