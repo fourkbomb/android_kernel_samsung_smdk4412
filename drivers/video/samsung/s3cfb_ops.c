@@ -771,7 +771,7 @@ int s3cfb_alloc_framebuffer(struct s3cfb_global *fbdev, int fimd_id)
 
 err_alloc_fb:
 	for (i = 0; i < pdata->nr_wins; i++) {
-		if (fbdev->fb[i].fix.smem_start)
+		if (fbdev->fb[i]->fix.smem_start)
 			s3cfb_unmap_video_memory(fbdev, fbdev->fb[i]);
 
 		if (fbdev->fb[i])
@@ -1546,6 +1546,8 @@ static void __s3c_fb_update_regs(struct s3cfb_global *fbdev, struct s3c_reg_data
 		win->enabled = !!(regs->wincon[i] & WINCONx_ENWIN);
 		if (i)
 			writel(regs->blendeq[i - 1], fbdev->regs + BLENDEQ(i));
+
+		win->dma_data = regs->dma_data[i];
 	}
 
 	writel(regs->shadowcon, fbdev->regs + S3C_WINSHMAP);
@@ -1569,7 +1571,7 @@ void s3c_fb_update_regs(struct s3cfb_global *fbdev, struct s3c_reg_data *regs)
 
 	for (i = 0; i < pdata->nr_wins; i++) {
 		old_fence[i] = regs->fence[i];
-		old_dma_bufs[i] = regs->dma_data[i];
+		old_dma_bufs[i] = ((struct s3cfb_window *)fbdev->fb[i]->par)->dma_data;
 		if (regs->fence[i])
 			s3c_fd_fence_wait(fbdev, regs->fence[i]);
 	}
@@ -1709,11 +1711,18 @@ static bool s3c_fb_validate_x_alignment(struct s3cfb_global *fbdev, int x, u32 w
 static void s3c_fb_cleanup_dma(struct s3cfb_global *fbdev,
 		struct s3cfb_dma_buf_data *dma)
 {
+	if (!dma->dma_addr)
+		return;
+	if (dma->fence)
+		sync_fence_put(dma->fence);
+
 	iovmm_unmap(&s3c_device_fb.dev, dma->dma_addr);
 	dma_buf_unmap_attachment(dma->attachment, dma->sg_table,
 			DMA_BIDIRECTIONAL);
 	dma_buf_detach(dma->dma_buf, dma->attachment);
-	dma->dma_buf = NULL;
+	dma_buf_put(dma->dma_buf);
+	ion_free(fbdev->ion_client, dma->ion_handle);
+	memset(dma, 0, sizeof(struct s3cfb_dma_buf_data));
 }
 
 static int s3c_fb_map_ion_handle(struct s3cfb_global *fbdev,
@@ -1741,7 +1750,7 @@ static int s3c_fb_map_ion_handle(struct s3cfb_global *fbdev,
 	dma->dma_addr = iovmm_map(&s3c_device_fb.dev, dma->sg_table->sgl, 0,
 			dma->dma_buf->size);
 	if (!dma->dma_addr || IS_ERR_VALUE(dma->dma_addr)) {
-		//dev_err(fbdev->dev, "iovmm_map() failed: %d\n", dma->dma_addr);
+		dev_err(fbdev->dev, "iovmm_map() failed: %ld\n", dma->dma_addr);
 		goto err_sysmmu;
 	}
 
@@ -1852,10 +1861,6 @@ static int s3c_fb_set_win_buffer(struct s3cfb_global *fbdev,
 
 	window_size = win_config->stride * win_config->h;
 #ifdef CONFIG_ION_EXYNOS
-	if (win->dma_data.dma_buf != NULL) {
-		// cleanup
-		s3c_fb_cleanup_dma(fbdev, &win->dma_data);
-	}
 	if (win_config->fd >= 0) {
 		// use ION buffer
 		hnd = ion_import_dma_buf(fbdev->ion_client, win_config->fd);
@@ -1883,11 +1888,6 @@ static int s3c_fb_set_win_buffer(struct s3cfb_global *fbdev,
 			ret = -EINVAL;
 			goto err_map;
 		}
-		win->dma_data = dma_buf_data;
-		hnd = NULL;
-		buf = NULL;
-		dev_err(fbdev->dev, "mapping window at 0x%x, length 0x%x vs win_size 0x%x offset 0x%x\n",
-				dma_buf_data.dma_addr, mapped_size, window_size, win_config->offset);
 		fb->fix.smem_start = dma_buf_data.dma_addr + win_config->offset;
 	}
 #endif
@@ -1922,6 +1922,7 @@ static int s3c_fb_set_win_buffer(struct s3cfb_global *fbdev,
 #endif
 		regs->vidw_buf_start[win_no] = fb->fix.smem_start;
 
+	regs->dma_data[win_no] = dma_buf_data;
 	regs->vidw_buf_end[win_no] = regs->vidw_buf_start[win_no] +
 			window_size;
 
@@ -2004,6 +2005,8 @@ static int s3c_fb_set_win_config(struct s3cfb_global *fbdev,
 	struct s3c_reg_data *regs;
 	struct sync_fence *fence;
 	struct sync_pt *pt;
+	struct fb_fix_screeninfo old_fix[S3C_FB_MAX_WIN];
+	struct fb_var_screeninfo old_var[S3C_FB_MAX_WIN];
 	int fd;
 
 	if (fbdev->support_fence == FENCE_SUPPORT)
@@ -2042,6 +2045,11 @@ static int s3c_fb_set_win_config(struct s3cfb_global *fbdev,
 		return -ENOMEM;
 	}
 
+	for (i = 0; i < pdata->nr_wins; i++) {
+		old_fix[i] = fbdev->fb[i]->fix;
+		old_var[i] = fbdev->fb[i]->var;
+	}
+
 	for (i = 0; i < pdata->nr_wins && !ret; i++) {
 		struct s3c_fb_win_config *config = &win_config[i];
 		bool enabled = 0;
@@ -2078,6 +2086,11 @@ static int s3c_fb_set_win_config(struct s3cfb_global *fbdev,
 	}
 
 	if ((fbdev->support_fence == FENCE_SUPPORT) && ret) {
+		for (i = 0; i < pdata->nr_wins; i++) {
+			fbdev->fb[i]->fix = old_fix[i];
+			fbdev->fb[i]->var = old_var[i];
+			s3c_fb_cleanup_dma(fbdev, &regs->dma_data[i]);
+		}
 		put_unused_fd(fd);
 		kfree(regs);
 	} else {
