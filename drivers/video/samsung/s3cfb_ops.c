@@ -20,7 +20,7 @@
 #include <linux/sw_sync.h>
 #include <plat/regs-fb.h>
 #include <plat/regs-fb-s5p.h>
-
+#include <linux/kernel.h>
 #if defined(CONFIG_CMA)
 #include <linux/cma.h>
 #elif defined(CONFIG_S5P_MEM_BOOTMEM)
@@ -1514,40 +1514,11 @@ static void s3c_fd_fence_wait(struct s3cfb_global *fbdev, struct sync_fence *fen
 		dev_warn(fbdev->dev, "error waiting on fence: %d\n", err);
 }
 
-void s3c_fb_update_regs(struct s3cfb_global *fbdev, struct s3c_reg_data *regs)
+static void __s3c_fb_update_regs(struct s3cfb_global *fbdev, struct s3c_reg_data *regs)
 {
 	struct s3c_platform_fb *pdata = to_fb_plat(fbdev->dev);
 	unsigned short i;
-	bool wait_for_vsync;
 	struct s3cfb_window *win;
-	struct sync_fence *old_fence[S3C_FB_MAX_WIN];
-
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
-#ifdef CONFIG_BUSFREQ_OPP
-	unsigned int new_num_of_win = 0;
-	unsigned int pre_num_of_win = 0;
-	unsigned int shadow_regs = 0;
-	unsigned int clkval = 0;
-	memset(&old_fence, 0, sizeof(old_fence));
-
-	for (i = 0; i < pdata->nr_wins; i++) {
-		old_fence[i] = regs->fence[i];
-		if (regs->fence[i])
-			s3c_fd_fence_wait(fbdev, regs->fence[i]);
-	}
-
-	for (i = 0; i < pdata->nr_wins; i++)
-		if (regs->shadowcon & SHADOWCON_CHx_ENABLE(i))
-			new_num_of_win++;
-	shadow_regs = readl(fbdev->regs + S3C_WINSHMAP);
-	for (i = 0; i < pdata->nr_wins; i++)
-		if (shadow_regs & SHADOWCON_CHx_ENABLE(i))
-			pre_num_of_win++;
-
-	if (pre_num_of_win < new_num_of_win)
-		s3c_fb_set_busfreq(fbdev, new_num_of_win);
-#endif
-#endif
 
 	for (i = 0; i < pdata->nr_wins; i++)
 		s3cfb_set_window_protect(fbdev, i, 1);
@@ -1582,33 +1553,79 @@ void s3c_fb_update_regs(struct s3cfb_global *fbdev, struct s3c_reg_data *regs)
 	for (i = 0; i < pdata->nr_wins; i++)
 		s3cfb_set_window_protect(fbdev, i, 0);
 
-	if (fbdev->support_fence == FENCE_SUPPORT) {
-	do {
-#if defined(CONFIG_FB_S5P_VSYNC_THREAD)
-		s3cfb_wait_for_vsync(fbdev, HZ/10);
-#else
-		s3cfb_wait_for_vsync(fbdev);
+}
+
+void s3c_fb_update_regs(struct s3cfb_global *fbdev, struct s3c_reg_data *regs)
+{
+	struct s3c_platform_fb *pdata = to_fb_plat(fbdev->dev);
+	struct s3cfb_dma_buf_data old_dma_bufs[S3C_FB_MAX_WIN];
+	struct sync_fence *old_fence[S3C_FB_MAX_WIN];
+	struct s3cfb_window *win;
+	unsigned short i;
+	int count = 100;
+	bool wait_for_vsync;
+	memset(&old_fence, 0, sizeof(old_fence));
+	memset(&old_dma_bufs, 0, sizeof(old_dma_bufs));
+
+	for (i = 0; i < pdata->nr_wins; i++) {
+		old_fence[i] = regs->fence[i];
+		old_dma_bufs[i] = regs->dma_data[i];
+		if (regs->fence[i])
+			s3c_fd_fence_wait(fbdev, regs->fence[i]);
+	}
+
+
+#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
+#ifdef CONFIG_BUSFREQ_OPP
+	unsigned int new_num_of_win = 0;
+	unsigned int pre_num_of_win = 0;
+	unsigned int shadow_regs = 0;
+	unsigned int clkval = 0;
+
+	for (i = 0; i < pdata->nr_wins; i++)
+		if (regs->shadowcon & SHADOWCON_CHx_ENABLE(i))
+			new_num_of_win++;
+	shadow_regs = readl(fbdev->regs + S3C_WINSHMAP);
+	for (i = 0; i < pdata->nr_wins; i++)
+		if (shadow_regs & SHADOWCON_CHx_ENABLE(i))
+			pre_num_of_win++;
+
+	if (pre_num_of_win < new_num_of_win)
+		s3c_fb_set_busfreq(fbdev, new_num_of_win);
 #endif
-		if (!fbdev->regs)
-			break;
+#endif
 
-		wait_for_vsync = false;
-
-		for (i = 0; i < pdata->nr_wins; i++) {
-			u32 new_start = regs->vidw_buf_start[i];
-			u32 shadow_start = s3cfb_get_win_cur_buf_addr(fbdev, i);
-			if (unlikely(new_start != shadow_start)) {
-				wait_for_vsync = true;
+	if (fbdev->support_fence == FENCE_SUPPORT) {
+		do {
+			__s3c_fb_update_regs(fbdev, regs);
+#if defined(CONFIG_FB_S5P_VSYNC_THREAD)
+			s3cfb_wait_for_vsync(fbdev, HZ/10);
+#else
+			s3cfb_wait_for_vsync(fbdev);
+#endif
+			if (!fbdev->regs)
 				break;
+
+			wait_for_vsync = false;
+
+			for (i = 0; i < pdata->nr_wins; i++) {
+				// wait for register to update (i.e. display is now using the correct address)
+				u32 new_start = regs->vidw_buf_start[i];
+				u32 shadow_start = s3cfb_get_win_cur_buf_addr(fbdev, i);
+				if (unlikely(new_start != shadow_start)) {
+					wait_for_vsync = true;
+					break;
+				}
 			}
-		}
-	} while (wait_for_vsync);
-	
+		} while (wait_for_vsync && count--);
+
+		sw_sync_timeline_inc(fbdev->timeline, 1);
 		for (i = 0; i < pdata->nr_wins; i++) {
 			if (old_fence[i])
 				sync_fence_put(old_fence[i]);
+			if (old_dma_bufs[i].dma_addr)
+				s3c_fb_cleanup_dma(fbdev, &old_dma_bufs[i]);
 		}
-		sw_sync_timeline_inc(fbdev->timeline, 1);
 	}
 
 #ifdef CONFIG_FB_S5P_SYSMMU
