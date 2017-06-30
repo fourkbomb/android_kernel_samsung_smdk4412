@@ -1197,8 +1197,8 @@ static int s3cfb_probe(struct platform_device *pdev)
 						PTR_ERR(fbdev[i]->ion_client));
 				goto err1;
 			}
+			platform_set_sysmmu(&SYSMMU_PLATDEV(fimd0).dev, &s3c_device_fb.dev);
 			exynos_sysmmu_set_fault_handler(&s3c_device_fb.dev, s3cfb_sysmmu_fault_handler);
-			iovmm_activate(&s3c_device_fb.dev);
 		}
 #endif
 
@@ -1358,6 +1358,14 @@ static int s3cfb_probe(struct platform_device *pdev)
 		fbdev[i]->ielcd_regs = ioremap(EXYNOS4_PA_LCD_LITE0, SZ_1K);
 		fbdev[i]->dsim_regs = ioremap(S5P_PA_DSIM0, SZ_1K);
 	}
+
+#ifdef CONFIG_ION_EXYNOS
+	s3cfb_wait_for_vsync(fbdev[0], 0);
+	ret = iovmm_activate(&s3c_device_fb.dev);
+	if (ret < 0) {
+		dev_err(fbdev[0]->dev, "failed to iovmm_activate: %d", ret);
+	}
+#endif
 
 #ifdef CONFIG_FB_S5P_LCD_INIT
 	/* panel control */
