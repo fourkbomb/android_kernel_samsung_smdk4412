@@ -261,7 +261,7 @@ int pr_buffer(const char *tag, const char *data, size_t data_len,
 	dump2hex(str, data, len);
 
 	/* don't change this printk to mif_debug for print this as level7 */
-	return printk(KERN_INFO "%s: %s(%u): %s%s\n", MIF_TAG, tag, data_len,
+	return printk(KERN_DEBUG "%s: %s(%u): %s%s\n", MIF_TAG, tag, data_len,
 			str, (len == data_len) ? "" : " ...");
 }
 
