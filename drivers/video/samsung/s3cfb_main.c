@@ -460,19 +460,20 @@ static int s3cfb_wait_for_vsync_thread(void *data)
 #endif
 
 #ifdef CONFIG_ION_EXYNOS
+extern void (*arm_pm_restart)(char str, const char *cmd);
 int s3cfb_sysmmu_fault_handler(
 		enum exynos_sysmmu_inttype itype, unsigned long pgtable_base,
 		unsigned long fault_addr)
 {
-	pr_err("FIMD0 PAGE FAULT occurred at 0x%lx (Page table base: 0x%lx)\n",
+	pr_err("FIMD0 PAGE FAULT occurred (%d) at 0x%lx (Page table base: 0x%lx)\n", itype,
 			fault_addr, pgtable_base);
 
 	// we could dump registers here, but our sysmmu driver doesn't give us a
 	// struct device :(
 
-	pr_err("oopsing...\n");
+	pr_err("i'll let you get off lightly this time...\n");
 
-	BUG();
+	arm_pm_restart(0, "recovery");
 
 	return 0;
 }
