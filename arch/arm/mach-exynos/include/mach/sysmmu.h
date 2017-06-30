@@ -25,6 +25,7 @@ struct sysmmu_platform_data {
 
 #ifdef CONFIG_EXYNOS_DEV_SYSMMU
 #include <linux/device.h>
+#include <plat/devs.h>
 struct platform_device;
 
 #define SYSMMU_PLATDEV(ipname) exynos_device_sysmmu_##ipname

@@ -39,10 +39,8 @@ typedef int (*iommu_fault_handler_t)(struct iommu_domain *,
 
 struct iommu_domain {
 	void *priv;
-#if defined(CONFIG_ARCH_EXYNOS5)
 	struct iommu_ops *ops;
 	iommu_fault_handler_t handler;
-#endif
 };
 
 #define IOMMU_CAP_CACHE_COHERENCY	0x1

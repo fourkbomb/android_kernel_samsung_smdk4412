@@ -28,7 +28,7 @@
 #include <asm/cacheflush.h>
 #include <asm/pgtable.h>
 
-#include <plat/sysmmu.h>
+#include <plat/sysmmu-samsung.h>
 
 #include <mach/sysmmu.h>
 
