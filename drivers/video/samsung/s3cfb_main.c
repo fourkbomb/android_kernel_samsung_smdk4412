@@ -66,6 +66,16 @@
 #include <plat/s5p-sysmmu.h>
 #endif
 
+#ifdef CONFIG_ION_EXYNOS
+#include <mach/sysmmu.h>
+#include <plat/devs.h>
+#include <plat/iovmm.h>
+#include <plat/sysmmu-samsung.h>
+#include <linux/ion.h>
+
+extern struct ion_device *ion_exynos;
+#endif
+
 #ifdef CONFIG_FB_S5P_GD2EVF
 extern int s6d6aa1_power_ext(int onoff);
 extern int gd2evf_power_ext(int onoff);
@@ -444,6 +454,25 @@ static int s3cfb_wait_for_vsync_thread(void *data)
 		sysfs_notify(&fbdev->dev->kobj, NULL, "vsync_time");
 #endif
 	}
+
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_ION_EXYNOS
+int s3cfb_sysmmu_fault_handler(
+		enum exynos_sysmmu_inttype itype, unsigned long pgtable_base,
+		unsigned long fault_addr)
+{
+	pr_err("FIMD0 PAGE FAULT occurred at 0x%lx (Page table base: 0x%lx)\n",
+			fault_addr, pgtable_base);
+
+	// we could dump registers here, but our sysmmu driver doesn't give us a
+	// struct device :(
+
+	pr_err("oopsing...\n");
+
+	BUG();
 
 	return 0;
 }
@@ -1158,6 +1187,20 @@ static int s3cfb_probe(struct platform_device *pdev)
 			ret = -EINVAL;
 			goto err1;
 		}
+
+#ifdef CONFIG_ION_EXYNOS
+		if (i == 0) {
+			fbdev[i]->ion_client = ion_client_create(ion_exynos, "fimd");
+			if (IS_ERR(fbdev[i]->ion_client)) {
+				dev_err(fbdev[i]->dev, "failed to ion_client_create: %ld\n",
+						PTR_ERR(fbdev[i]->ion_client));
+				goto err1;
+			}
+			exynos_sysmmu_set_fault_handler(&s3c_device_fb.dev, s3cfb_sysmmu_fault_handler);
+			iovmm_activate(&s3c_device_fb.dev);
+		}
+#endif
+
 		fbdev[i]->regs = ioremap(res->start, res->end - res->start + 1);
 		fbdev[i]->regs_org = fbdev[i]->regs;
 		if (!fbdev[i]->regs) {

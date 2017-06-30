@@ -45,6 +45,15 @@
 #define CMA_REGION_VIDEO	"fimd"
 #endif
 
+#ifdef CONFIG_ION_EXYNOS
+#include <linux/dma-buf.h>
+#include <linux/ion.h>
+#include <mach/sysmmu.h>
+#include <plat/devs.h>
+#include <plat/iovmm.h>
+#include <plat/sysmmu-samsung.h>
+#endif
+
 #ifdef CONFIG_BUSFREQ_OPP
 #include <mach/dev.h>
 #endif
@@ -1728,12 +1737,69 @@ static bool s3c_fb_validate_x_alignment(struct s3cfb_global *fbdev, int x, u32 w
 }
 
 #if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
+
+#ifdef CONFIG_ION_EXYNOS
+static void s3c_fb_cleanup_dma(struct s3cfb_global *fbdev,
+		struct s3cfb_dma_buf_data *dma)
+{
+	iovmm_unmap(&s3c_device_fb.dev, dma->dma_addr);
+	dma_buf_unmap_attachment(dma->attachment, dma->sg_table,
+			DMA_BIDIRECTIONAL);
+	dma_buf_detach(dma->dma_buf, dma->attachment);
+	dma->dma_buf = NULL;
+}
+
+static int s3c_fb_map_ion_handle(struct s3cfb_global *fbdev,
+		struct s3cfb_dma_buf_data *dma, struct ion_handle *hnd,
+		struct dma_buf *buf)
+{
+	dma->fence = NULL;
+	dma->dma_buf = buf;
+	dma->attachment = dma_buf_attach(dma->dma_buf, fbdev->dev);
+	if (IS_ERR_OR_NULL(dma->attachment)) {
+		dev_err(fbdev->dev, "dma_buf_attach failed: %ld\n",
+				PTR_ERR(dma->attachment));
+		goto err_attach;
+	}
+
+	// TODO why bidirectional? does FIMD actually write to this memory (or does
+	// BIDIRECTIONAL have some special meaning in this context?)
+	dma->sg_table = dma_buf_map_attachment(dma->attachment, DMA_BIDIRECTIONAL);
+	if (IS_ERR_OR_NULL(dma->sg_table)) {
+		dev_err(fbdev->dev, "dma_buf_map_attachment failed: %ld\n",
+				PTR_ERR(dma->sg_table));
+		goto err_map;
+	}
+
+	dma->dma_addr = iovmm_map(&s3c_device_fb.dev, dma->sg_table->sgl, 0,
+			dma->dma_buf->size);
+	if (!dma->dma_addr || IS_ERR_VALUE(dma->dma_addr)) {
+		//dev_err(fbdev->dev, "iovmm_map() failed: %d\n", dma->dma_addr);
+		goto err_sysmmu;
+	}
+
+	dma->ion_handle = hnd;
+	return dma->dma_buf->size;
+err_sysmmu:
+	dma_buf_unmap_attachment(dma->attachment, dma->sg_table,
+			DMA_BIDIRECTIONAL);
+err_map:
+	dma_buf_detach(dma->dma_buf, dma->attachment);
+err_attach:
+	return 0;
+}
+#endif /* CONFIG_ION_EXYNOS */
+
 static int s3c_fb_set_win_buffer(struct s3cfb_global *fbdev,
 		struct fb_info *fb, struct s3c_fb_win_config *win_config,
 		struct s3c_reg_data *regs)
 {
 	struct s3cfb_window *win = fb->par;
 	struct fb_var_screeninfo prev_var = fb->var;
+	struct ion_handle *hnd;
+	struct dma_buf *buf;
+	struct s3cfb_dma_buf_data dma_buf_data;
+	int mapped_size;
 	unsigned short win_no = win->id;
 	int ret;
 	size_t window_size;
@@ -1801,7 +1867,7 @@ static int s3c_fb_set_win_buffer(struct s3cfb_global *fbdev,
 		ret = -EINVAL;
 		goto err_invalid;
 	}
-	
+
 	if (!s3c_fb_validate_x_alignment(fbdev, win_config->x, win_config->w,
 			fb->var.bits_per_pixel)) {
 		ret = -EINVAL;
@@ -1818,8 +1884,47 @@ static int s3c_fb_set_win_buffer(struct s3cfb_global *fbdev,
 		regs->fence[win_no] = NULL;
 
 	window_size = win_config->stride * win_config->h;
+#ifdef CONFIG_ION_EXYNOS
+	if (win->dma_data.dma_buf != NULL) {
+		// cleanup
+		s3c_fb_cleanup_dma(fbdev, &win->dma_data);
+	}
+	if (win_config->fd >= 0) {
+		// use ION buffer
+		hnd = ion_import_dma_buf(fbdev->ion_client, win_config->fd);
+		if (IS_ERR_OR_NULL(hnd)) {
+			dev_err(fbdev->dev, "failed to import ION fd: %ld\n", PTR_ERR(hnd));
+			ret = PTR_ERR(hnd);
+			goto err_invalid;
+		}
+		buf = dma_buf_get(win_config->fd);
+		if (IS_ERR_OR_NULL(buf)) {
+			dev_err(fbdev->dev, "failed to get dma_buf: %ld\n", PTR_ERR(buf));
+			ret = PTR_ERR(buf);
+			goto err_dma_buf;
+		}
 
-	if (win_config->phys_addr != 0)
+		mapped_size = s3c_fb_map_ion_handle(fbdev, &dma_buf_data, hnd, buf);
+		if (!mapped_size) {
+			ret = -ENOMEM;
+			goto err_map;
+		}
+
+		if (mapped_size < window_size) {
+			dev_err(fbdev->dev, "attempted to draw window (size %d) from buffer of size (%d)\n",
+					window_size, mapped_size);
+			ret = -EINVAL;
+			goto err_map;
+		}
+		win->dma_data = dma_buf_data;
+		hnd = NULL;
+		buf = NULL;
+		dev_err(fbdev->dev, "mapping window at 0x%x, length 0x%x vs win_size 0x%x offset 0x%x\n",
+				dma_buf_data.dma_addr, mapped_size, window_size, win_config->offset);
+		fb->fix.smem_start = dma_buf_data.dma_addr + win_config->offset;
+	}
+#endif
+	else if (win_config->phys_addr != 0)
 		fb->fix.smem_start = win_config->phys_addr + win_config->offset;
 	else
 		fb->fix.smem_start = win_config->virt_addr + win_config->offset;
@@ -1910,7 +2015,12 @@ static int s3c_fb_set_win_buffer(struct s3cfb_global *fbdev,
 				fb->var.transp.length, win_config->plane_alpha);
 
 	return 0;
-
+err_map:
+	if (buf)
+		dma_buf_put(buf);
+err_dma_buf:
+	if (hnd)
+		ion_free(fbdev->ion_client, hnd);
 err_invalid:
 	fb->var = prev_var;
 	return ret;

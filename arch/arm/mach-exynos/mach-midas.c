@@ -3732,7 +3732,7 @@ static struct platform_device *midas_devices[] __initdata = {
 	&SYSMMU_PLATDEV(fimc2),
 	&SYSMMU_PLATDEV(fimc3),
 	&SYSMMU_PLATDEV(jpeg),
-#ifdef CONFIG_FB_S5P_SYSMMU
+#if defined(CONFIG_FB_S5P_SYSMMU) || defined(CONFIG_ION_EXYNOS)
 	&SYSMMU_PLATDEV(fimd0),
 #endif
 	&SYSMMU_PLATDEV(mfc_lr),
@@ -4311,7 +4311,7 @@ static void __init exynos_sysmmu_init(void)
 #ifdef CONFIG_VIDEO_JPEG_V2X
 	platform_set_sysmmu(&SYSMMU_PLATDEV(jpeg).dev, &s5p_device_jpeg.dev);
 #endif
-#ifdef CONFIG_FB_S5P_SYSMMU
+#if defined(CONFIG_FB_S5P_SYSMMU) || defined(CONFIG_ION_EXYNOS)
 	platform_set_sysmmu(&SYSMMU_PLATDEV(fimd0).dev, &s3c_device_fb.dev);
 #endif
 #ifdef CONFIG_VIDEO_EXYNOS_FIMC_IS

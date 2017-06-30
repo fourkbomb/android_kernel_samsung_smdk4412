@@ -24,6 +24,10 @@
 #endif
 #include <linux/kthread.h>
 #include <mach/cpufreq.h>
+#ifdef CONFIG_ION_EXYNOS
+#include <linux/dma-buf.h>
+#include <linux/ion.h>
+#endif
 
 #define S3CFB_NAME		"s3cfb"
 #define S3CFB_AVALUE(r, g, b)	(((r & 0xf) << 8) | \
@@ -197,7 +201,21 @@ struct s3cfb_global {
 #endif
         struct fb_fix_screeninfo initial_fix;
         struct fb_var_screeninfo initial_var;
+#ifdef CONFIG_ION_EXYNOS
+        struct ion_client *ion_client;
+#endif
 };
+
+#ifdef CONFIG_ION_EXYNOS
+struct s3cfb_dma_buf_data {
+	struct ion_handle *ion_handle;
+	struct dma_buf *dma_buf;
+	struct dma_buf_attachment *attachment;
+	struct sg_table *sg_table;
+	dma_addr_t dma_addr;
+	struct sync_fence *fence;
+};
+#endif
 
 struct s3cfb_window {
 	int			id;
@@ -213,6 +231,9 @@ struct s3cfb_window {
 	struct			s3cfb_alpha alpha;
 	struct			s3cfb_chroma chroma;
 	int			power_state;
+#ifdef CONFIG_ION_EXYNOS
+	struct s3cfb_dma_buf_data dma_data;
+#endif
 };
 
 struct s3cfb_user_window {
@@ -301,6 +322,9 @@ struct s3c_reg_data {
 	u32			vidw_buf_start[S3C_FB_MAX_WIN];
 	u32			vidw_buf_end[S3C_FB_MAX_WIN];
 	u32			vidw_buf_size[S3C_FB_MAX_WIN];
+#ifdef CONFIG_ION_EXYNOS
+	struct s3cfb_dma_buf_data dma_data[S3C_FB_MAX_WIN];
+#endif // TODO remove the sync_fence below
 	struct sync_fence	*fence[S3C_FB_MAX_WIN];
 };
 
@@ -353,10 +377,6 @@ extern int s3cfb_map_video_memory(struct s3cfb_global *fbdev,
 				struct fb_info *fb);
 extern int s3cfb_unmap_video_memory(struct s3cfb_global *fbdev,
 				struct fb_info *fb);
-extern int s3cfb_map_default_video_memory(struct s3cfb_global *fbdev,
-					struct fb_info *fb, int fimd_id);
-extern int s3cfb_unmap_default_video_memory(struct s3cfb_global *fbdev,
-					struct fb_info *fb);
 extern int s3cfb_set_bitfield(struct fb_var_screeninfo *var);
 extern int s3cfb_set_alpha_info(struct fb_var_screeninfo *var,
 				struct s3cfb_window *win);
