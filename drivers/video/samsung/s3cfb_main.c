@@ -1441,10 +1441,7 @@ static int s3cfb_remove(struct platform_device *pdev)
 			/* free if exists */
 			if (fb) {
 				win = fb->par;
-				if (win->id == pdata->default_win)
-					s3cfb_unmap_default_video_memory(fbdev[i], fb);
-				else
-					s3cfb_unmap_video_memory(fbdev[i], fb);
+				s3cfb_unmap_video_memory(fbdev[i], fb);
 
 				s3cfb_set_buffer_address(fbdev[i], j);
 				framebuffer_release(fb);
@@ -1502,7 +1499,6 @@ static struct platform_driver s3cfb_driver = {
 struct fb_ops s3cfb_ops = {
 	.owner		= THIS_MODULE,
 	.fb_open	= s3cfb_open,
-	.fb_release	= s3cfb_release,
 	.fb_check_var	= s3cfb_check_var,
 	.fb_set_par	= s3cfb_set_par,
 	.fb_setcolreg	= s3cfb_setcolreg,

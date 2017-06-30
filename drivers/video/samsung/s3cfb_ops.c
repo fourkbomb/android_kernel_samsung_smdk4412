@@ -107,6 +107,7 @@ MODULE_PARM_DESC(bootloaderfb, "Address of booting logo image in Bootloader");
 
 int s3cfb_draw_logo(struct fb_info *fb)
 {
+#ifndef CONFIG_ION_EXYNOS
 #ifdef CONFIG_FB_S5P_SPLASH_SCREEN
 #ifdef RGB_BOOTSCREEN
 	struct fb_fix_screeninfo *fix = &fb->fix;
@@ -160,6 +161,7 @@ int s3cfb_draw_logo(struct fb_info *fb)
 #endif /* #ifdef RGB_BOOTSCREEN */
 #endif
 #endif
+#endif // CONFIG_ION_EXYNOS
 
 	return 0;
 }
@@ -324,6 +326,14 @@ int s3cfb_init_global(struct s3cfb_global *fbdev)
 	return 0;
 }
 
+static int s3c_fb_map_ion_handle(struct s3cfb_global *fbdev,
+		struct s3cfb_dma_buf_data *dma, struct ion_handle *hnd,
+		struct dma_buf *buf);
+
+static void s3c_fb_cleanup_dma(struct s3cfb_global *fbdev,
+		struct s3cfb_dma_buf_data *dma);
+
+
 int s3cfb_unmap_video_memory(struct s3cfb_global *fbdev, struct fb_info *fb)
 {
 	struct fb_fix_screeninfo *fix = &fb->fix;
@@ -334,12 +344,10 @@ int s3cfb_unmap_video_memory(struct s3cfb_global *fbdev, struct fb_info *fb)
 	int err;
 #endif
 
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
-	return 0;
-#endif
-
 	if (fix->smem_start) {
-#ifdef CONFIG_CMA
+#ifdef CONFIG_ION_EXYNOS
+		s3c_fb_cleanup_dma(fbdev, &win->dma_data);
+#elif defined(CONFIG_CMA)
 		err = cma_info(&mem_info, fbdev->dev, 0);
 		if (ERR_PTR(err))
 			return -ENOMEM;
@@ -361,19 +369,38 @@ int s3cfb_map_video_memory(struct s3cfb_global *fbdev, struct fb_info *fb)
 {
 	struct fb_fix_screeninfo *fix = &fb->fix;
 	struct s3cfb_window *win = fb->par;
-#ifdef CONFIG_CMA
+#ifdef CONFIG_ION_EXYNOS
+	struct ion_handle *handle;
+	struct dma_buf *buf;
+	int ret;
+#elif defined(CONFIG_CMA)
 	struct cma_info mem_info;
 	int err;
-#endif
-
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
-	return 0;
 #endif
 
 	if (win->owner == DMA_MEM_OTHER)
 		return 0;
 
-#ifdef CONFIG_CMA
+#ifdef CONFIG_ION_EXYNOS
+	handle = ion_alloc(fbdev->ion_client, (size_t)PAGE_ALIGN(fix->smem_len),
+			0, ION_HEAP_EXYNOS_MASK, 0);
+	if (IS_ERR(handle)) {
+		dev_err(fbdev->dev, "ion_alloc failed: %ld", PTR_ERR(handle));
+		return -ENOMEM;
+	}
+
+	buf = ion_share_dma_buf(fbdev->ion_client, handle);
+	if (IS_ERR_OR_NULL(buf)) {
+		dev_err(fbdev->dev, "ion_share_dma_buf failed: %ld", PTR_ERR(handle));
+		goto err_share;
+	}
+
+	ret = s3c_fb_map_ion_handle(fbdev, &win->dma_data, handle, buf);
+	if (!ret)
+		goto err_map;
+	fix->smem_start = win->dma_data.dma_addr;
+	fb->screen_base = NULL;
+#elif defined(CONFIG_CMA)
 	err = cma_info(&mem_info, fbdev->dev, CMA_REGION_VIDEO);
 	if (err)
 		return err;
@@ -405,74 +432,14 @@ int s3cfb_map_video_memory(struct s3cfb_global *fbdev, struct fb_info *fb)
 	win->owner = DMA_MEM_FIMD;
 
 	return 0;
-}
-
-int s3cfb_map_default_video_memory(struct s3cfb_global *fbdev,
-					struct fb_info *fb, int fimd_id)
-{
-	struct fb_fix_screeninfo *fix = &fb->fix;
-	struct s3cfb_window *win = fb->par;
-
-#ifdef CONFIG_CMA
-	struct cma_info mem_info;
-	int err;
+#ifdef CONFIG_ION_EXYNOS
+err_map:
+	dma_buf_put(buf);
+err_share:
+	ion_free(fbdev->ion_client, handle);
+	return -ENOMEM;
 #endif
 
-	if (win->owner == DMA_MEM_OTHER)
-		return 0;
-
-#ifdef CONFIG_CMA
-	err = cma_info(&mem_info, fbdev->dev, CMA_REGION_FIMD);
-	if (err)
-		return err;
-	fix->smem_start = (dma_addr_t)cma_alloc
-		(fbdev->dev, "fimd", (size_t)PAGE_ALIGN(fix->smem_len), 0);
-	fb->screen_base = cma_get_virt(fix->smem_start, PAGE_ALIGN(fix->smem_len), 1);
-#elif defined(CONFIG_S5P_MEM_BOOTMEM)
-	fix->smem_start = s5p_get_media_memory_bank(S5P_MDEV_FIMD, 1);
-	fix->smem_len = s5p_get_media_memsize_bank(S5P_MDEV_FIMD, 1);
-	fb->screen_base = ioremap_wc(fix->smem_start, fix->smem_len);
-#else
-	fb->screen_base = dma_alloc_writecombine(fbdev->dev,
-						PAGE_ALIGN(fix->smem_len),
-						(unsigned int *)
-						&fix->smem_start, GFP_KERNEL);
-#endif
-
-	if (!fb->screen_base)
-		return -ENOMEM;
-	else
-		dev_info(fbdev->dev, "[fb%d] win%d: dma: 0x%08x, cpu: 0x%08x, "
-			"size: 0x%08x\n", fb->node, win->id,
-			(unsigned int)fix->smem_start,
-			(unsigned int)fb->screen_base, fix->smem_len);
-
-	if (bootloaderfb)
-		memset(fb->screen_base, 0, fix->smem_len);
-	win->owner = DMA_MEM_FIMD;
-
-#ifdef CONFIG_FB_S5P_SYSMMU
-	fbdev->sysmmu.default_fb_addr = fix->smem_start;
-#endif
-
-	return 0;
-}
-
-int s3cfb_unmap_default_video_memory(struct s3cfb_global *fbdev,
-					struct fb_info *fb)
-{
-	struct fb_fix_screeninfo *fix = &fb->fix;
-	struct s3cfb_window *win = fb->par;
-
-	if (fix->smem_start) {
-		iounmap(fb->screen_base);
-
-		fix->smem_start = 0;
-		fix->smem_len = 0;
-		dev_info(fbdev->dev, "[fb%d] win%d: video memory released\n", fb->node, win->id);
-	}
-
-	return 0;
 }
 
 int s3cfb_set_bitfield(struct fb_var_screeninfo *var)
@@ -645,24 +612,13 @@ int s3cfb_set_par_window(struct s3cfb_global *fbdev, struct fb_info *fb)
 
 	dev_dbg(fbdev->dev, "[fb%d] win%d: set_par\n", fb->node, win->id);
 
-#if (!defined(CONFIG_CPU_EXYNOS4210))
-	if ((win->id != pdata->default_win) && fb->fix.smem_start)
-		s3cfb_unmap_video_memory(fbdev, fb);
-#endif
-
 	/* modify the fix info */
-	if (win->id != pdata->default_win) {
-		fb->fix.line_length = fb->var.xres_virtual *
-			fb->var.bits_per_pixel / 8;
-		fb->fix.smem_len = fb->fix.line_length * fb->var.yres_virtual;
-	}
+	fb->fix.line_length = fb->var.xres_virtual *
+		fb->var.bits_per_pixel / 8;
+	// manta doesn't touch this - should we?
+	fb->fix.smem_len = fb->fix.line_length * fb->var.yres_virtual;
 
-	if (win->id != pdata->default_win && !fb->fix.smem_start) {
-		ret = s3cfb_map_video_memory(fbdev, fb);
-		if (ret != 0)
-			return ret;
-	}
-
+	// => s3cfb_set_oneshot on 4412
 	s3cfb_set_win_params(fbdev, win->id);
 
 	return 0;
@@ -704,6 +660,7 @@ int s3cfb_init_fbinfo(struct s3cfb_global *fbdev, int id)
 	win->id = id;
 	win->path = DATA_PATH_DMA;
 	win->dma_burst = 16;
+	memset(&win->dma_data, 0, sizeof(win->dma_data));
 	s3cfb_update_power_state(fbdev, win->id, FB_BLANK_POWERDOWN);
 	alpha->mode = PLANE_BLENDING;
 
@@ -799,18 +756,10 @@ int s3cfb_alloc_framebuffer(struct s3cfb_global *fbdev, int fimd_id)
 			goto err_alloc_fb;
 		}
 
-		if (i == pdata->default_win) {
-			if (s3cfb_map_default_video_memory(fbdev,
-						fbdev->fb[i], fimd_id)) {
-				dev_err(fbdev->dev,
-						"failed to map video memory "
-						"for default window (%d)\n", i);
-				ret = -ENOMEM;
-				goto err_alloc_fb;
-			} else {
-				memcpy(&(fbdev->initial_fix), &(fbdev->fb[i]->fix), sizeof(struct fb_fix_screeninfo));
-				memcpy(&(fbdev->initial_var), &(fbdev->fb[i]->var), sizeof(struct fb_var_screeninfo));
-			}
+		if (s3cfb_map_video_memory(fbdev, fbdev->fb[i])) {
+			dev_err(fbdev->dev, "failed to map video memory for window %d\n", i);
+			ret = -ENOMEM;
+			goto err_alloc_fb;
 		}
 		sec_getlog_supply_fbinfo((void *)fbdev->fb[i]->fix.smem_start,
 					 fbdev->fb[i]->var.xres,
@@ -822,6 +771,9 @@ int s3cfb_alloc_framebuffer(struct s3cfb_global *fbdev, int fimd_id)
 
 err_alloc_fb:
 	for (i = 0; i < pdata->nr_wins; i++) {
+		if (fbdev->fb[i].fix.smem_start)
+			s3cfb_unmap_video_memory(fbdev, fbdev->fb[i]);
+
 		if (fbdev->fb[i])
 			framebuffer_release(fbdev->fb[i]);
 	}
@@ -872,13 +824,11 @@ int s3cfb_release_window(struct fb_info *fb)
 		return 0;
 	}
 #endif
-	if (win->id != pdata->default_win) {
-		s3cfb_disable_window(fbdev, win->id);
-		s3cfb_unmap_video_memory(fbdev, fb);
+	s3cfb_disable_window(fbdev, win->id);
+	s3cfb_unmap_video_memory(fbdev, fb);
 #if !defined(CONFIG_CPU_EXYNOS4212) && !defined(CONFIG_CPU_EXYNOS4412)
-		s3cfb_set_buffer_address(fbdev, win->id);
+	s3cfb_set_buffer_address(fbdev, win->id);
 #endif
-	}
 
 	win->x = 0;
 	win->y = 0;
