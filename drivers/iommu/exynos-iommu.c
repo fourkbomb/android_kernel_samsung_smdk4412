@@ -675,8 +675,6 @@ err_iovmm:
 		clk_put(data->clk[0]);
 		if (data->clk[1]) {
 			clk_put(data->clk[1]);
-			if (data->clk[2])
-				clk_put(data->clk[2]);
 		}
 	}
 err_irq:
