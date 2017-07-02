@@ -822,9 +822,6 @@ int s3cfb_release_window(struct fb_info *fb)
 #endif
 	s3cfb_disable_window(fbdev, win->id);
 	s3cfb_unmap_video_memory(fbdev, fb);
-#if !defined(CONFIG_CPU_EXYNOS4212) && !defined(CONFIG_CPU_EXYNOS4412)
-	s3cfb_set_buffer_address(fbdev, win->id);
-#endif
 
 	win->x = 0;
 	win->y = 0;
@@ -1125,7 +1122,7 @@ int s3cfb_wait_for_vsync(struct s3cfb_global *fbdev)
 #endif
 
 
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
+#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412) || defined(CONFIG_CPU_EXYNOS4210)
 /**
  * s3c_fb_align_word() - align pixel count to word boundary
  * @bpp: The number of bits per pixel
@@ -1692,7 +1689,7 @@ static bool s3c_fb_validate_x_alignment(struct s3cfb_global *fbdev, int x, u32 w
 	return 1;
 }
 
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
+#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412) || defined(CONFIG_CPU_EXYNOS4210)
 
 #ifdef CONFIG_ION_EXYNOS
 static void s3c_fb_cleanup_dma(struct s3cfb_global *fbdev,
@@ -2124,11 +2121,9 @@ int s3cfb_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 	case FBIO_WAITFORVSYNC:
 		if (fbdev->regs == 0)
 			return 0;
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
-#ifdef CONFIG_CPU_EXYNOS4412
+#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412) || defined(CONFIG_CPU_EXYNOS4210)
 		if (!fbdev->regs)
 			return ret;
-#endif
 #if !defined(CONFIG_FB_S5P_VSYNC_THREAD)
 		/* Enable Vsync */
 		s3cfb_set_global_interrupt(fbdev, 1);
@@ -2143,7 +2138,7 @@ int s3cfb_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 #endif
 		if (fbdev->regs == 0)
 			return 0;
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
+#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412) || defined(CONFIG_CPU_EXYNOS4210)
 #if !defined(CONFIG_FB_S5P_VSYNC_THREAD)
 		/* Disable Vsync */
 		s3cfb_set_global_interrupt(fbdev, 0);
@@ -2158,7 +2153,7 @@ int s3cfb_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 				   sizeof(p.user_window)))
 			ret = -EFAULT;
 		else {
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
+#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412) || defined(CONFIG_CPU_EXYNOS4210)
 			win->x = p.user_window.x;
 			win->y = p.user_window.y;
 #else
@@ -2284,7 +2279,7 @@ int s3cfb_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 			s3cfb_set_alpha_mode(fbdev, win->id, p.alpha_mode);
 		break;
 
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
+#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412) || defined(CONFIG_CPU_EXYNOS4210)
 	case S3CFB_WIN_CONFIG:
 		if (copy_from_user(&p.win_data,
 				   (struct s3c_fb_win_config_data __user *)arg,
