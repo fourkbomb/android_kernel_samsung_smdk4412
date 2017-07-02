@@ -141,14 +141,6 @@ struct s3cfb_vsync {
 	struct task_struct      *thread;
 };
 
-#ifdef CONFIG_FB_S5P_SYSMMU
-struct sysmmu_flag {
-	bool			enabled;
-	unsigned long		default_fb_addr;
-	unsigned long		pgd;
-};
-#endif
-
 struct s3cfb_global {
 	void __iomem		*regs;
 	void __iomem		*regs_org;
@@ -192,9 +184,6 @@ struct s3cfb_global {
 #ifdef FEATURE_BUSFREQ_LOCK
 	atomic_t		busfreq_lock_cnt;	/* Bus frequency Lock count */
 	int			busfreq_flag;		/* context bus frequency flag*/
-#endif
-#ifdef CONFIG_FB_S5P_SYSMMU
-	struct sysmmu_flag	sysmmu;
 #endif
 #if defined(CONFIG_FB_S5P_GD2EVF)
 	bool			suspend;
@@ -443,9 +432,6 @@ extern int s3cfb_check_vsync_status(struct s3cfb_global *ctrl);
 extern int s3cfb_set_dualrgb(struct s3cfb_global *ctrl, int mode);
 extern int s3cfb_set_window_protect(struct s3cfb_global *ctrl, int id, bool protect);
 extern void s3c_fb_update_regs(struct s3cfb_global *fbdev, struct s3c_reg_data *regs);
-#ifdef CONFIG_FB_S5P_SYSMMU
-extern void s3cfb_clean_outer_pagetable(unsigned long vaddr, size_t size);
-#endif
 #if defined(CONFIG_FB_S5P_VSYNC_THREAD)
 extern int s3cfb_wait_for_vsync(struct s3cfb_global *fbdev, u32 timeout);
 #endif

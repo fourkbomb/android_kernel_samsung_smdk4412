@@ -22,11 +22,6 @@
 
 #include "s3cfb.h"
 
-#ifdef CONFIG_FB_S5P_SYSMMU
-#include <asm/cacheflush.h>
-#include <plat/s5p-sysmmu.h>
-#endif
-
 void s3cfb_check_line_count(struct s3cfb_global *ctrl)
 {
 	int timeout = 30 * 5300;
@@ -713,38 +708,6 @@ int s3cfb_get_win_cur_buf_addr(struct s3cfb_global *ctrl, int id)
 
 	return start_addr;
 }
-
-#ifdef CONFIG_FB_S5P_SYSMMU
-#define LV1_SHIFT		20
-#define LV1_PT_SIZE		SZ_1M
-#define LV2_PT_SIZE		SZ_1K
-#define LV2_BASE_MASK		0x3ff
-
-void s3cfb_clean_outer_pagetable(unsigned long vaddr, size_t size)
-{
-	unsigned long *pgd;
-	unsigned long *lv1, *lv1end;
-	unsigned long lv2pa;
-
-	if (!current->mm)
-		return;
-
-	pgd = (unsigned long *)current->mm->pgd;
-
-	lv1 = pgd + (vaddr >> LV1_SHIFT);
-	lv1end = pgd + ((vaddr + size + LV1_PT_SIZE-1) >> LV1_SHIFT);
-
-	/* clean level1 page table */
-	outer_clean_range(virt_to_phys(lv1), virt_to_phys(lv1end));
-
-	do {
-		lv2pa = *lv1 & ~LV2_BASE_MASK;	/* lv2 pt base */
-		/* clean level2 page table */
-		outer_clean_range(lv2pa, lv2pa + LV2_PT_SIZE);
-		lv1++;
-	} while (lv1 != lv1end);
-}
-#endif
 
 int s3cfb_set_buffer_address(struct s3cfb_global *ctrl, int id)
 {

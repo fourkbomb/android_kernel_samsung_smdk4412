@@ -15,11 +15,6 @@ config FB_S5P
 	help
 	  This enables support for Samsung Display Controller (FIMD)
 
-config FB_S5P_SYSMMU
-	bool "S5P FIMD SYSMMU enable"
-	depends on FB_S5P
-	default n
-
 config FB_S5P_SPLASH_SCREEN
 	bool "SPLASH_SCREEN on LCD"
 	depends on FB_S5P

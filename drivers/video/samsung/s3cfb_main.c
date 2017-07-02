@@ -62,10 +62,6 @@
 #include <plat/regs-dsim.h>
 #endif
 
-#ifdef CONFIG_FB_S5P_SYSMMU
-#include <plat/s5p-sysmmu.h>
-#endif
-
 #ifdef CONFIG_ION_EXYNOS
 #include <mach/sysmmu.h>
 #include <plat/devs.h>
@@ -656,14 +652,6 @@ void s3cfb_early_suspend(struct early_suspend *h)
 	/* disable the power domain */
 	dev_info(info->dev, "disable power domain\n");
 	pm_runtime_put_sync(&pdev->dev);
-#endif
-
-#ifdef CONFIG_FB_S5P_SYSMMU
-	if (fbdev[0]->sysmmu.enabled == true) {
-		fbdev[0]->sysmmu.enabled = false;
-		fbdev[0]->sysmmu.pgd = 0;
-		s5p_sysmmu_disable(fbdev[0]->dev);
-	}
 #endif
 
 	dev_info(info->dev, "-%s\n", __func__);

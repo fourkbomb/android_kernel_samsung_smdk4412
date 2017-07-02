@@ -58,10 +58,6 @@
 #include <mach/dev.h>
 #endif
 
-#ifdef CONFIG_FB_S5P_SYSMMU
-#include <plat/s5p-sysmmu.h>
-#endif
-
 #define SUPPORT_LPM_PAN_DISPLAY
 
 #if defined(CONFIG_S6D7AA0_LSL080AL02)
@@ -1630,15 +1626,6 @@ void s3c_fb_update_regs(struct s3cfb_global *fbdev, struct s3c_reg_data *regs)
 		}
 	}
 
-#ifdef CONFIG_FB_S5P_SYSMMU
-       if ((fbdev->sysmmu.enabled == false) &&
-                       (fbdev->sysmmu.pgd)) {
-               fbdev->sysmmu.enabled = true;
-               s5p_sysmmu_enable(fbdev->dev,
-                               (unsigned long)virt_to_phys((unsigned int*)fbdev->sysmmu.pgd));
-       }
-#endif
-
 #if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
 #ifdef CONFIG_BUSFREQ_OPP
 	if (pre_num_of_win > new_num_of_win)
@@ -1909,18 +1896,7 @@ static int s3c_fb_set_win_buffer(struct s3cfb_global *fbdev,
 			fb->var.xres_virtual);
 	fb->fix.ypanstep = fb_panstep(win_config->h, win_config->h);
 
-#ifdef CONFIG_FB_S5P_SYSMMU
-	if ((fbdev->sysmmu.enabled == false) &&
-			(current->mm))
-		fbdev->sysmmu.pgd = (unsigned int)current->mm->pgd;
-#endif
-
-#ifdef CONFIG_FB_S5P_SYSMMU
-	if (win_config->phys_addr != 0)
-		regs->vidw_buf_start[win_no] = (u32)phys_to_virt(fb->fix.smem_start);
-	else
-#endif
-		regs->vidw_buf_start[win_no] = fb->fix.smem_start;
+	regs->vidw_buf_start[win_no] = fb->fix.smem_start;
 
 	regs->dma_data[win_no] = dma_buf_data;
 	regs->vidw_buf_end[win_no] = regs->vidw_buf_start[win_no] +
@@ -1929,14 +1905,6 @@ static int s3c_fb_set_win_buffer(struct s3cfb_global *fbdev,
 	regs->vidw_buf_size[win_no] = vidw_buf_size(win_config->w,
 			fb->fix.line_length,
 			fb->var.bits_per_pixel);
-
-#ifdef CONFIG_FB_S5P_SYSMMU
-	if ((fb->fix.smem_start) &&
-			(fb->fix.smem_start != fbdev->sysmmu.default_fb_addr))
-		s3cfb_clean_outer_pagetable(regs->vidw_buf_start[win_no],
-				regs->vidw_buf_end[win_no] - regs->vidw_buf_start[win_no]);
-#endif
-
 
 	regs->vidosd_a[win_no] = vidosd_a(win_config->x, win_config->y);
 	regs->vidosd_b[win_no] = vidosd_b(win_config->x, win_config->y,
