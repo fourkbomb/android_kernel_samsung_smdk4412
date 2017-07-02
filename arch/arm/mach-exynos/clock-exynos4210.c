@@ -29,9 +29,8 @@
 #include <mach/hardware.h>
 #include <mach/map.h>
 #include <mach/regs-clock.h>
-#include <mach/dev-sysmmu.h>
+#include <mach/sysmmu.h>
 #include <mach/exynos-clock.h>
-#include <mach/dev-sysmmu.h>
 
 static struct clksrc_clk *sysclks[] = {
 	/* nothing here yet */
@@ -104,12 +103,12 @@ static struct clk init_clocks_off[] = {
 		.ctrlbit	= (1 << 5),
 	}, {
 		.name           = "sysmmu",
-		.devname        = SYSMMU_CLOCK_NAME(fimd1, 7),
+		.devname        = SYSMMU_CLOCK_DEVNAME(fimd1, 11),
 		.enable         = exynos4_clk_ip_lcd1_ctrl,
 		.ctrlbit        = (1 << 4),
 	}, {
 		.name		= "sysmmu",
-		.devname	= SYSMMU_CLOCK_NAME(g2d, 9),
+		.devname	= SYSMMU_CLOCK_DEVNAME(2d, 15),
 		.enable		= exynos4_clk_ip_image_ctrl,
 		.ctrlbit	= (1 << 3),
 	}, {
@@ -137,14 +136,14 @@ static struct clk init_clocks_off[] = {
 		.name		= "pcie",
 		.enable		= exynos4_clk_ip_fsys_ctrl,
 		.ctrlbit	= (1 << 14),
-	}, {
+	},/* {
 		.name		= "sysmmu",
-		.devname	= SYSMMU_CLOCK_NAME(pcie, 8),
+		.devname	= SYSMMU_CLOCK_DEVNAME(pcie, 8),
 		.enable		= exynos4_clk_ip_fsys_ctrl,
 		.ctrlbit	= (1 << 18),
-	}, {
+	}, */{
 		.name		= "sysmmu",
-		.devname	= SYSMMU_CLOCK_NAME(2d, 9),
+		.devname	= SYSMMU_CLOCK_DEVNAME(2d, 15),
 		.enable		= exynos4_clk_ip_image_ctrl,
 		.ctrlbit	= (1 << 3),
 #ifdef CONFIG_INTERNAL_MODEM_IF
