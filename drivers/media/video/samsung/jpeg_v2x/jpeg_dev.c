@@ -105,8 +105,8 @@ static void jpeg_watchdog_worker(struct work_struct *work)
 	}
 }
 #endif
-static int jpeg_dec_queue_setup(struct vb2_queue *vq, unsigned int *num_buffers,
-			    unsigned int *num_planes, unsigned long sizes[],
+static int jpeg_dec_queue_setup(struct vb2_queue *vq, const struct v4l2_format *fmt,
+				unsigned int *num_buffers, unsigned int *num_planes, unsigned int sizes[],
 			    void *allocators[])
 {
 	struct jpeg_ctx *ctx = vb2_get_drv_priv(vq);
@@ -185,8 +185,8 @@ static int jpeg_dec_stop_streaming(struct vb2_queue *q)
 	return 0;
 }
 
-static int jpeg_enc_queue_setup(struct vb2_queue *vq, unsigned int *num_buffers,
-			    unsigned int *num_planes, unsigned long sizes[],
+static int jpeg_enc_queue_setup(struct vb2_queue *vq, const struct v4l2_format *fmt,
+				unsigned int *num_buffers, unsigned int *num_planes, unsigned int sizes[],
 			    void *allocators[])
 {
 	struct jpeg_ctx *ctx = vb2_get_drv_priv(vq);
