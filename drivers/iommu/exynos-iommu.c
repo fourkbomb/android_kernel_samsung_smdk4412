@@ -167,6 +167,14 @@ static struct debugfs_reg32 dbg_regs[NUM_REGS] = {
 };
 #undef DBG_REG
 
+void exynos_iommu_dump(struct sysmmu_drvdata *data) {
+	int i;
+	pr_err("sysmmu %s regs:\n", data->dbgname);
+	for (i = 0; i < NUM_REGS; i++) {
+		pr_err("%s = 0x%08x\n", dbg_regs[i].name, readl((void *)(data->sfrbases[0] + dbg_regs[i].offset)));
+	}
+}
+
 static bool set_sysmmu_active(struct sysmmu_drvdata *data)
 {
 	/* return true if the System MMU was not active previously
@@ -365,6 +373,7 @@ static irqreturn_t exynos_sysmmu_irq(int irq, void *dev_id)
 		if (itype != SYSMMU_FAULT_UNKNOWN)
 			base = __raw_readl(
 					data->sfrbases[i] + REG_PT_BASE_ADDR);
+		exynos_iommu_dump(data);
 		ret = data->fault_handler(itype, base, addr);
 	}
 
