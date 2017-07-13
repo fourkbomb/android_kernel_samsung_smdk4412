@@ -579,6 +579,31 @@ int s3cfb_check_var(struct fb_var_screeninfo *var, struct fb_info *fb)
 	return 0;
 }
 
+/**
+ * s3cfb_clear_win() - clear hardware window registers.
+ * @fbdev: The base resources for the hardware.
+ * @win: The window to process.
+ *
+ * Reset the specific window registers to a known state.
+ */
+static void s3cfb_clear_win(struct s3cfb_global *fbdev, int win)
+{
+	void __iomem *regs = fbdev->regs;
+	u32 reg;
+
+	writel(0, regs + S3C_WINCON(win));
+	writel(0, regs + S3C_VIDOSD_A(win));
+	writel(0, regs + S3C_VIDOSD_B(win));
+	writel(0, regs + S3C_VIDOSD_C(win));
+	reg = readl(fbdev->regs + S3C_WINSHMAP);
+	reg &= ~SHADOWCON_CHx_ENABLE(win);
+	reg &= ~SHADOWCON_WINx_PROTECT(win);
+	writel(reg, fbdev->regs + S3C_WINSHMAP);
+	reg = readl(fbdev->regs + S3C_WINCON(win));
+	reg &= ~WINCONx_ENWIN;
+	writel(reg, fbdev->regs + S3C_WINCON(win));
+}
+
 void s3cfb_set_win_params(struct s3cfb_global *fbdev, int id)
 {
 	s3cfb_set_window_control(fbdev, id);
@@ -879,6 +904,7 @@ int s3cfb_blank(int blank_mode, struct fb_info *fb)
 	struct s3c_platform_fb *pdata = to_fb_plat(fbdev->dev);
 	int enabled_win = 0;
 	int i;
+	int ret;
 #if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412) || defined(CONFIG_CPU_EXYNOS4210)
 	int win_status;
 #endif
@@ -915,17 +941,23 @@ int s3cfb_blank(int blank_mode, struct fb_info *fb)
 
 		enabled_win = atomic_read(&fbdev->enabled_win);
 		if (enabled_win == 0) {
-			/* temporarily nonuse for recovery, will modify code */
-			/* pdata->clk_on(pdev, &fbdev->clock); */
+			pdata->clk_on(pdev, &fbdev->clock);
 			s3cfb_init_global(fbdev);
 			s3cfb_set_clock(fbdev);
-				for (i = 0; i < pdata->nr_wins; i++) {
-					tmp_win = fbdev->fb[i]->par;
-					if (tmp_win->owner == DMA_MEM_FIMD)
-						s3cfb_set_win_params(fbdev,
-								tmp_win->id);
-				}
+			for (i = 0; i < pdata->nr_wins; i++) {
+				tmp_win = fbdev->fb[i]->par;
+				if (tmp_win->owner == DMA_MEM_FIMD)
+					s3cfb_clear_win(fbdev, i);
+			}
 		}
+
+#ifdef CONFIG_ION_EXYNOS
+		ret = iovmm_activate(&s3c_device_fb.dev);
+		if (ret < 0) {
+			dev_err(fbdev->dev, "failed to reactivate IOVMM: %d\n", ret);
+			return ret;
+		}
+#endif
 
 		if (win->enabled) {	/* from FB_BLANK_NORMAL */
 			s3cfb_win_map_off(fbdev, win->id);
@@ -1025,9 +1057,10 @@ int s3cfb_blank(int blank_mode, struct fb_info *fb)
 			if (pdata->lcd_off)
 				pdata->lcd_off(pdev);
 			/* temporaily nonuse for recovery , will modify code */
-			/* s3cfb_display_off(fbdev);
-			pdata->clk_off(pdev, &fbdev->clock); */
+			s3cfb_display_off(fbdev);
+			pdata->clk_off(pdev, &fbdev->clock);
 		}
+		iovmm_deactivate(&s3c_device_fb.dev);
 #if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)\
 	|| defined(CONFIG_CPU_EXYNOS4210)
 		win_status = window_on_off_status(fbdev);
@@ -1722,8 +1755,6 @@ static int s3c_fb_map_ion_handle(struct s3cfb_global *fbdev,
 		goto err_attach;
 	}
 
-	// TODO why bidirectional? does FIMD actually write to this memory (or does
-	// BIDIRECTIONAL have some special meaning in this context?)
 	dma->sg_table = dma_buf_map_attachment(dma->attachment, DMA_BIDIRECTIONAL);
 	if (IS_ERR_OR_NULL(dma->sg_table)) {
 		dev_err(fbdev->dev, "dma_buf_map_attachment failed: %ld\n",
