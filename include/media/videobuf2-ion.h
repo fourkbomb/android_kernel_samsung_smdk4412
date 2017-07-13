@@ -16,6 +16,7 @@
 #include <linux/scatterlist.h>
 #include <linux/dma-mapping.h>
 #include <linux/ion.h>
+#include <linux/exynos_ion.h>
 #include <linux/err.h>
 
 /* flags to vb2_ion_create_context
@@ -37,7 +38,7 @@
 
 /* flags for contents protection */
 #define VB2ION_CTX_DRM_MFCSH	ION_HEAP_EXYNOS_MFC_SH_MASK
-#define VB2ION_CTX_DRM_VIDEO	ION_HEAP_EXYNOS_VIDEO_MASK
+#define VB2ION_CTX_DRM_VIDEO	ION_HEAP_EXYNOS_MFC_OUTPUT_MASK
 #define VB2ION_CTX_DRM_MFCFW	ION_HEAP_EXYNOS_MFC_FW_MASK
 
 #define VB2ION_CTX_MASK_ION	(~((1 << (BITS_PER_LONG - 12)) - 1) \
@@ -203,7 +204,6 @@ void vb2_ion_sync_for_device(void *cookie, off_t offset, size_t size,
 						enum dma_data_direction dir);
 void vb2_ion_sync_for_cpu(void *cookie, off_t offset, size_t size,
 						enum dma_data_direction dir);
-
 int vb2_ion_cache_flush(struct vb2_buffer *vb, u32 num_planes);
 int vb2_ion_cache_inv(struct vb2_buffer *vb, u32 num_planes);
 
@@ -216,5 +216,6 @@ int vb2_ion_attach_iommu(void *alloc_ctx);
 void vb2_ion_detach_iommu(void *alloc_ctx);
 
 extern const struct vb2_mem_ops vb2_ion_memops;
+extern struct ion_device *ion_exynos; /* drivers/gpu/ion/exynos/exynos-ion.c */
 
-#endif
+#endif /* _MEDIA_VIDEOBUF2_ION_H */
