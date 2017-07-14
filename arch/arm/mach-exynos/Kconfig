@@ -422,7 +422,7 @@ config EXYNOS4_SETUP_MIPI_DSIM
 
 config EXYNOS4_SETUP_JPEG
 	bool
-	depends on VIDEO_JPEG_V2X
+	depends on VIDEO_JPEG_V2X || VIDEO_EXYNOS_JPEG
 	default y
 	help
 	  Common setup code for JPEG
