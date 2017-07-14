@@ -31,6 +31,7 @@
 #include <linux/time.h>
 #include <linux/clk.h>
 #include <linux/semaphore.h>
+#include <linux/videodev2_exynos_media.h>
 #include <linux/vmalloc.h>
 #include <linux/workqueue.h>
 

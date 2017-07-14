@@ -42,6 +42,8 @@
 #include <linux/pm_runtime.h>
 #endif
 
+#include <mach/dev.h>
+
 #include <media/v4l2-ioctl.h>
 
 #include "jpeg_core.h"
