@@ -153,7 +153,7 @@ static void sec_reboot(char str, const char *cmd)
 			writel(REBOOT_SET_PREFIX | REBOOT_SET_SUD | value,
 			       S5P_INFORM3);
 		else if (!strncmp(cmd, "emergency", 9))
-			writel(0, S5P_INFORM3);
+			writel(REBOOT_MODE_PREFIX | REBOOT_MODE_RECOVERY, S5P_INFORM3);
 		else
 			writel(REBOOT_MODE_PREFIX | REBOOT_MODE_NONE,
 			       S5P_INFORM3);
