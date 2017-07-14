@@ -555,9 +555,6 @@ static void fimc_is_isp_buf_queue(struct vb2_buffer *vb)
 {
 	struct fimc_is_video_dev *video = vb->vb2_queue->drv_priv;
 	struct fimc_is_dev *is_dev = video->dev;
-#if defined(CONFIG_VIDEOBUF2_ION)
-	dma_addr_t kvaddr;
-#endif
 	unsigned int i;
 
 	if (is_dev->video[FIMC_IS_VIDEO_NUM_BAYER].num_plane != vb->num_planes)

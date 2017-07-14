@@ -241,7 +241,7 @@ struct is_meminfo {
 	void		*bitproc_buf;
 	size_t		dvaddr;
 	unsigned char	*kvaddr;
-	struct vb2_buffer	vb2_buf;
+	void *fw_cookie;
 	dma_addr_t	fw_ref_base;
 	dma_addr_t	setfile_ref_base;
 };

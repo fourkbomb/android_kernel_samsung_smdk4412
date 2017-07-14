@@ -50,7 +50,7 @@
 
 /* Binary load functions */
 #if 0
- void dump_region(struct fimc_is_dev *dev)
+void dump_region(struct fimc_is_dev *dev)
 {
 	int i, j;
 	struct file *file;
@@ -67,17 +67,17 @@
 	fd = sys_open(filename, O_WRONLY|O_CREAT, 0644);
 	if (fd >= 0) {
 		//sys_write(fd, (u8 *)phys_to_virt(dev->mem.base), 10*1024*1024);
-		sys_write(fd, (u8 *)phys_to_virt(dev->mem.base + FIMC_IS_DEBUG_REGION_ADDR), 512*1024);
+		sys_write(fd, (u8 *)(dev->mem.kvaddr + FIMC_IS_DEBUG_REGION_ADDR), 512*1024);
 		file = fget(fd);
 		if (file) {
 			//vfs_write(file, (u8 *)phys_to_virt(dev->mem.base), 10*1024*1024, &pos);
-			vfs_write(file, (u8 *)phys_to_virt(dev->mem.base + FIMC_IS_DEBUG_REGION_ADDR), 512*1024, &pos);
+			vfs_write(file, (u8 *)(dev->mem.kvaddr + FIMC_IS_DEBUG_REGION_ADDR), 512*1024, &pos);
 			fput(file);
 		}
 		sys_close(fd);
 	} 
 	else
-		printk(KERN_ERR "Dump FW error !! \n");
+		printk(KERN_ERR "Dump FW error !! %d\n", fd);
 
 	set_fs(old_fs);
 }
@@ -135,7 +135,7 @@ static int fimc_is_request_firmware(struct fimc_is_dev *dev)
 			fw_blob->size);
 	release_firmware(fw_blob);
 out:
-	printk(KERN_INFO "FIMC_IS FW loaded = 0x%08x\n", dev->mem.base);
+	printk(KERN_INFO "FIMC_IS FW loaded = 0x%08x // 0x%08x\n", dev->mem.kvaddr, dev->mem.dvaddr);
 	return ret;
 }
 
@@ -243,8 +243,8 @@ static int fimc_is_load_fw(struct v4l2_subdev *sd)
 	}
 	clear_bit(IS_ST_IDLE, &dev->state);
 	dbg("--- fimc_is_load_fw end\n");
-	printk(KERN_INFO "FIMC-IS FW info = %s\n", dev->fw.fw_info);
-	printk(KERN_INFO "FIMC-IS FW ver = %s\n", dev->fw.fw_version);
+	dev_info(&dev->pdev->dev, "FIMC-IS FW info = %s\n", dev->fw.fw_info);
+	dev_info(&dev->pdev->dev, "FIMC-IS FW ver = %s\n", dev->fw.fw_version);
 	return ret;
 }
 
@@ -338,6 +338,7 @@ static int fimc_is_init_set(struct v4l2_subdev *sd, u32 val)
 		err("A5 is not power on state!!\n");
 		return -EINVAL;
 	}
+
 	/* Init sequence 1: Open sensor */
 	dbg("v4l2 : open sensor : %d\n", val);
 	fimc_is_hw_open_sensor(dev, dev->sensor.id, val);
@@ -388,11 +389,7 @@ static int fimc_is_init_set(struct v4l2_subdev *sd, u32 val)
 	if (dev->is_p_region->shared[MAX_SHARED_COUNT-1] != MAGIC_NUMBER)
 		err("!!! MAGIC NUMBER ERROR !!!\n");
 	/* Display region information (DEBUG only) */
-	dbg("Parameter region addr = 0x%08x\n", virt_to_phys(dev->is_p_region));
-	dbg("ISP region addr = 0x%08x\n",
-				virt_to_phys(&dev->is_p_region->parameter.isp));
-	dbg("Shared region addr = 0x%08x\n",
-				virt_to_phys(&dev->is_p_region->shared));
+	dbg("Parameter region addr = 0x%08x\n", (unsigned int)(dev->is_p_region));
 	dev->frame_count = 0;
 	dev->setfile.sub_index = 0;
 	/* Init sequence 3: Stream off */

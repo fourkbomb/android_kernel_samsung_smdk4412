@@ -1057,7 +1057,6 @@ void fimc_is_hw_open_sensor(struct fimc_is_dev *dev, u32 id, u32 sensor_index)
 		dev->sensor.sensor_type = SENSOR_S5K3H2_CSI_A;
 		writel(SENSOR_NAME_S5K3H2, dev->regs + ISSR2);
 		writel(SENSOR_CONTROL_I2C0, dev->regs + ISSR3);
-		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
 		break;
 	case SENSOR_S5K3H2_CSI_B:
 		sensor_ext = (struct sensor_open_extended *)
@@ -1078,7 +1077,6 @@ void fimc_is_hw_open_sensor(struct fimc_is_dev *dev, u32 id, u32 sensor_index)
 		dev->sensor.sensor_type = SENSOR_S5K3H2_CSI_B;
 		writel(SENSOR_NAME_S5K3H2, dev->regs + ISSR2);
 		writel(SENSOR_CONTROL_I2C1, dev->regs + ISSR3);
-		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
 		break;
 	case SENSOR_S5K6A3_CSI_A:
 		sensor_ext = (struct sensor_open_extended *)
@@ -1099,7 +1097,6 @@ void fimc_is_hw_open_sensor(struct fimc_is_dev *dev, u32 id, u32 sensor_index)
 		dev->sensor.sensor_type = SENSOR_S5K6A3_CSI_A;
 		writel(SENSOR_NAME_S5K6A3, dev->regs + ISSR2);
 		writel(SENSOR_CONTROL_I2C0, dev->regs + ISSR3);
-		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
 		break;
 	case SENSOR_S5K6A3_CSI_B:
 		sensor_ext = (struct sensor_open_extended *)
@@ -1120,7 +1117,6 @@ void fimc_is_hw_open_sensor(struct fimc_is_dev *dev, u32 id, u32 sensor_index)
 		dev->sensor.sensor_type = SENSOR_S5K6A3_CSI_B;
 		writel(SENSOR_NAME_S5K6A3, dev->regs + ISSR2);
 		writel(SENSOR_CONTROL_I2C1, dev->regs + ISSR3);
-		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
 		break;
 	case SENSOR_S5K6B2_CSI_A:
 		sensor_ext = (struct sensor_open_extended *)
@@ -1141,7 +1137,6 @@ void fimc_is_hw_open_sensor(struct fimc_is_dev *dev, u32 id, u32 sensor_index)
 		dev->sensor.sensor_type = SENSOR_S5K6B2_CSI_A;
 		writel(SENSOR_NAME_S5K6B2, dev->regs + ISSR2);
 		writel(SENSOR_CONTROL_I2C0, dev->regs + ISSR3);
-		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
 		break;
 	case SENSOR_S5K6B2_CSI_B:
 		sensor_ext = (struct sensor_open_extended *)
@@ -1162,7 +1157,6 @@ void fimc_is_hw_open_sensor(struct fimc_is_dev *dev, u32 id, u32 sensor_index)
 		dev->sensor.sensor_type = SENSOR_S5K6B2_CSI_B;
 		writel(SENSOR_NAME_S5K6B2, dev->regs + ISSR2);
 		writel(SENSOR_CONTROL_I2C1, dev->regs + ISSR3);
-		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
 		break;
 	case SENSOR_S5K3H7_CSI_A:
 		sensor_ext = (struct sensor_open_extended *)
@@ -1183,7 +1177,6 @@ void fimc_is_hw_open_sensor(struct fimc_is_dev *dev, u32 id, u32 sensor_index)
 		dev->sensor.sensor_type = SENSOR_S5K3H7_CSI_A;
 		writel(SENSOR_NAME_S5K3H7, dev->regs + ISSR2);
 		writel(SENSOR_CONTROL_I2C0, dev->regs + ISSR3);
-		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
 		break;
 	case SENSOR_S5K3H7_CSI_B:
 		sensor_ext = (struct sensor_open_extended *)
@@ -1204,7 +1197,6 @@ void fimc_is_hw_open_sensor(struct fimc_is_dev *dev, u32 id, u32 sensor_index)
 		dev->sensor.sensor_type = SENSOR_S5K3H7_CSI_B;
 		writel(SENSOR_NAME_S5K3H7, dev->regs + ISSR2);
 		writel(SENSOR_CONTROL_I2C1, dev->regs + ISSR3);
-		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
 		break;
 	case SENSOR_S5K4E5_CSI_A:
 		sensor_ext = (struct sensor_open_extended *)
@@ -1225,7 +1217,6 @@ void fimc_is_hw_open_sensor(struct fimc_is_dev *dev, u32 id, u32 sensor_index)
 		dev->sensor.sensor_type = SENSOR_S5K4E5_CSI_A;
 		writel(SENSOR_NAME_S5K4E5, dev->regs + ISSR2);
 		writel(SENSOR_CONTROL_I2C0, dev->regs + ISSR3);
-		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
 		break;
 	case SENSOR_S5K4E5_CSI_B:
 		sensor_ext = (struct sensor_open_extended *)
@@ -1246,7 +1237,6 @@ void fimc_is_hw_open_sensor(struct fimc_is_dev *dev, u32 id, u32 sensor_index)
 		dev->sensor.sensor_type = SENSOR_S5K4E5_CSI_B;
 		writel(SENSOR_NAME_S5K4E5, dev->regs + ISSR2);
 		writel(SENSOR_CONTROL_I2C1, dev->regs + ISSR3);
-		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
 		break;
 	case SENSOR_S5K6A3_CSI_B_CUSTOM:
 		sensor_ext = (struct sensor_open_extended *)
@@ -1267,9 +1257,16 @@ void fimc_is_hw_open_sensor(struct fimc_is_dev *dev, u32 id, u32 sensor_index)
 		dev->sensor.sensor_type = SENSOR_S5K6A3_CSI_B;
 		writel(SENSOR_NAME_S5K6A3, dev->regs + ISSR2);
 		writel(SENSOR_CONTROL_I2C1, dev->regs + ISSR3);
-		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
 		break;
 	}
+	if (sensor_ext != NULL) {
+#ifdef CONFIG_VIDEOBUF2_ION
+		writel(dev->mem.dvaddr + offsetof(struct is_region, shared), dev->regs + ISSR4);
+#else
+		writel(virt_to_phys(sensor_ext), dev->regs + ISSR4);
+#endif
+	}
+
 	fimc_is_hw_set_intgr0_gd0(dev);
 }
 
@@ -1357,6 +1354,8 @@ void fimc_is_hw_a5_power(struct fimc_is_dev *dev, int on)
 		cfg = dev->mem.base;
 #elif defined(CONFIG_VIDEOBUF2_ION)
 		cfg = dev->mem.dvaddr;
+		if (dev->alloc_ctx)
+			fimc_is_mem_resume(dev->alloc_ctx);
 #endif
 		printk(KERN_INFO "%s on 2. access BBOAR\n", __func__);
 		writel(cfg, dev->regs + BBOAR);
@@ -1368,6 +1367,10 @@ void fimc_is_hw_a5_power(struct fimc_is_dev *dev, int on)
 		writel(0x00018000, PMUREG_ISP_ARM_OPTION);
 		printk(KERN_INFO "%s on 5. complete\n", __func__);
 	} else {
+#if defined(CONFIG_VIDEOBUF2_ION)
+		if (dev->alloc_ctx)
+			fimc_is_mem_suspend(dev->alloc_ctx);
+#endif
 		/* 1. disable A5 */
 		printk(KERN_INFO "%s off 1. access PMUREG_ISP_ARM_OPTION\n", __func__);
 		if (dev->low_power_mode) {
