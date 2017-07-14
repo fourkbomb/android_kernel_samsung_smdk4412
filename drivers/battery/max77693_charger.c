@@ -248,11 +248,11 @@ static void max77693_dump_reg(struct max77693_charger_data *chg_data)
 	struct i2c_client *i2c = chg_data->max77693->i2c;
 	u8 reg_data;
 	u32 reg_addr;
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	for (reg_addr = 0xB0; reg_addr <= 0xC5; reg_addr++) {
 		max77693_read_reg(i2c, reg_addr, &reg_data);
-		pr_info("max77693: c: 0x%02x(0x%02x)\n", reg_addr, reg_data);
+		pr_debug("max77693: c: 0x%02x(0x%02x)\n", reg_addr, reg_data);
 	}
 }
 
@@ -1489,11 +1489,11 @@ static void max77693_recovery_work(struct work_struct *work)
 	if ((chg_data->soft_reg_recovery_cnt < RECOVERY_CNT) && (
 		(chgin_dtls == 0x3) && (chg_dtls != 0x8) && (byp_dtls == 0x0) &&
 		(chg_data->soft_reg_state) && (!chg_data->soft_reg_ing))) {
-		pr_info("%s: try to recovery, cnt(%d)\n", __func__,
+		pr_debug("%s: try to recovery, cnt(%d)\n", __func__,
 				(chg_data->soft_reg_recovery_cnt + 1));
 
 		if (!battery_psy) {
-			pr_err("%s: fail to get battery psy\n", __func__);
+			pr_debug("%s: fail to get battery psy\n", __func__);
 			return;
 		}
 
@@ -1505,10 +1505,10 @@ static void max77693_recovery_work(struct work_struct *work)
 					&value);
 #endif
 	} else {
-		pr_info("%s: fail to recovery, cnt(%d)\n", __func__,
+		pr_debug("%s: fail to recovery, cnt(%d)\n", __func__,
 				(chg_data->soft_reg_recovery_cnt + 1));
 
-		pr_info("%s:  CHGIN(0x%x), CHG(0x%x), BYP(0x%x)\n",
+		pr_debug("%s:  CHGIN(0x%x), CHG(0x%x), BYP(0x%x)\n",
 				__func__, chgin_dtls, chg_dtls, byp_dtls);
 
 		/* schedule softreg recovery wq */
@@ -1517,7 +1517,7 @@ static void max77693_recovery_work(struct work_struct *work)
 			schedule_delayed_work(&chg_data->recovery_work,
 				msecs_to_jiffies(RECOVERY_DELAY));
 		} else {
-			pr_info("%s: recovery cnt(%d) is over\n",
+			pr_debug("%s: recovery cnt(%d) is over\n",
 				__func__, RECOVERY_CNT);
 		}
 #if defined(CONFIG_MACH_KONA)

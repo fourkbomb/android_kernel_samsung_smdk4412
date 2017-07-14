@@ -815,7 +815,7 @@ static void link_pm_runtime_work(struct work_struct *work)
 		break;
 	case RPM_SUSPENDING:
 		/* Checking the usb_runtime_suspend running time.*/
-		mif_info("rpm_states=%d", dev->power.runtime_status);
+		mif_debug("rpm_states=%d", dev->power.runtime_status);
 		msleep(20);
 		break;
 	default:

@@ -6212,8 +6212,8 @@ int alloc_contig_range(unsigned long start, unsigned long end,
 	zone->cma_alloc = 1;
 
 migrate:
-	printk(KERN_DEBUG "migrating range %lx %lx, retry (%d)\n",
-				start, end, retry);
+	/*printk(KERN_DEBUG "migrating range %lx %lx, retry (%d)\n",
+				start, end, retry);*/
 	ret = __alloc_contig_migrate_range(start, end);
 	if (ret) {
 		printk(KERN_ERR "__alloc_contig_migrate_range failed\n");

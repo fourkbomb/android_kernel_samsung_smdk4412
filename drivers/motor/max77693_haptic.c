@@ -22,7 +22,7 @@
 #include <linux/mfd/max77693.h>
 #include <linux/mfd/max77693-private.h>
 
-#define SEC_DEBUG_VIB
+//#define SEC_DEBUG_VIB
 #define PWM_MIN 0
 #define PWM_DEFAULT 50
 #define PWM_THRESH 75
