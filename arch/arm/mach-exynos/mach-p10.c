@@ -72,7 +72,7 @@
 #include <mach/pmu.h>
 #include <mach/regs-pmu.h>
 #include <mach/dwmci.h>
-#ifdef CONFIG_VIDEO_JPEG_V2X
+#if defined(CONFIG_VIDEO_JPEG_V2X) || defined(CONFIG_VIDEO_EXYNOS_JPEG)
 #include <plat/jpeg.h>
 #endif
 
@@ -2079,7 +2079,7 @@ static struct platform_device *p10_devices[] __initdata = {
 	&s5p_device_mfc,
 #endif
 
-#ifdef CONFIG_VIDEO_JPEG_V2X
+#if defined(CONFIG_VIDEO_JPEG_V2X) || defined(CONFIG_VIDEO_EXYNOS_JPEG)
 	&s5p_device_jpeg,
 #endif
 
@@ -2583,7 +2583,7 @@ static void __init p10_map_io(void)
 #ifdef CONFIG_EXYNOS_DEV_SYSMMU
 static void __init exynos_sysmmu_init(void)
 {
-#ifdef CONFIG_VIDEO_JPEG_V2X
+#if defined(CONFIG_VIDEO_JPEG_V2X) || defined(CONFIG_VIDEO_EXYNOS_JPEG)
 	platform_set_sysmmu(&SYSMMU_PLATDEV(jpeg).dev, &s5p_device_jpeg.dev);
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_S5P_MFC
@@ -2998,7 +2998,7 @@ static void __init p10_machine_init(void)
 	exynos5_gsc_set_clock_rate("dout_aclk_300_gscl", 267000000);
 #endif
 
-#ifdef CONFIG_VIDEO_JPEG_V2X
+#if defined(CONFIG_VIDEO_JPEG_V2X) || defined(CONFIG_VIDEO_EXYNOS_JPEG)
 	exynos5_jpeg_setup_clock(&s5p_device_jpeg.dev, 150000000);
 #endif
 

@@ -108,7 +108,7 @@ struct s3cfb_extdsp_lcd {
 #endif
 #include <mach/dev-sysmmu.h>
 
-#ifdef CONFIG_VIDEO_JPEG_V2X
+#if defined(CONFIG_VIDEO_JPEG_V2X) || defined(CONFIG_VIDEO_EXYNOS_JPEG)
 #include <plat/jpeg.h>
 #endif
 
@@ -1807,7 +1807,7 @@ static struct platform_device *midas_devices[] __initdata = {
 	&s5p_device_fimg2d,
 #endif
 
-#ifdef CONFIG_VIDEO_JPEG_V2X
+#if defined(CONFIG_VIDEO_JPEG_V2X) || defined(CONFIG_VIDEO_EXYNOS_JPEG)
 	&s5p_device_jpeg,
 #endif
 	&samsung_asoc_dma,
@@ -2170,7 +2170,7 @@ static void __init exynos_sysmmu_init(void)
 #ifdef CONFIG_VIDEO_TVOUT
 	sysmmu_set_owner(&SYSMMU_PLATDEV(tv).dev, &s5p_device_tvout.dev);
 #endif
-#ifdef CONFIG_VIDEO_JPEG_V2X
+#if defined(CONFIG_VIDEO_JPEG_V2X) || defined(CONFIG_VIDEO_EXYNOS_JPEG)
 	sysmmu_set_owner(&SYSMMU_PLATDEV(jpeg).dev, &s5p_device_jpeg.dev);
 #endif
 #ifdef CONFIG_VIDEO_EXYNOS_FIMC_IS
@@ -2402,7 +2402,7 @@ static void __init midas_machine_init(void)
 #endif
 #endif
 
-#ifdef CONFIG_VIDEO_JPEG_V2X
+#if defined(CONFIG_VIDEO_JPEG_V2X) || defined(CONFIG_VIDEO_EXYNOS_JPEG)
 #ifdef CONFIG_EXYNOS_DEV_PD
 	s5p_device_jpeg.dev.parent = &exynos4_device_pd[PD_CAM].dev;
 	exynos4_jpeg_setup_clock(&s5p_device_jpeg.dev, 160000000);
