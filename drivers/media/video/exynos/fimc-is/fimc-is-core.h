@@ -102,13 +102,8 @@
 #define FIMC_IS_DEBUG_MSG	0x3F
 #define FIMC_IS_DEBUG_LEVEL	3
 
-#define SDCARD_FW
 #define USE_NIGHT_SHOT
 
-#ifdef SDCARD_FW
-#define FIMC_IS_FW_SDCARD	"/sdcard/fimc_is_fw.bin"
-#define FIMC_IS_SETFILE_SDCARD	"/sdcard/setfile.bin"
-#endif
 #define FIMC_IS_FW		"fimc_is_fw.bin"
 #define FIMC_IS_SETFILE		"setfile.bin"
 

@@ -88,127 +88,53 @@ static int fimc_is_request_firmware(struct fimc_is_dev *dev)
 	int ret;
 	struct firmware *fw_blob;
 	u8 *buf = NULL;
-#ifdef SDCARD_FW
-	struct file *fp;
-	mm_segment_t old_fs;
-	long fsize, nread;
-	int fw_requested = 1;
-
-	ret = 0;
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	fp = filp_open(FIMC_IS_FW_SDCARD, O_RDONLY, 0);
-	if (IS_ERR(fp)) {
-		dbg("failed to open %s\n", FIMC_IS_FW_SDCARD);
-		goto request_fw;
+	ret = request_firmware((const struct firmware **)&fw_blob,
+			FIMC_IS_FW, &dev->pdev->dev);
+	if (ret) {
+		dev_err(&dev->pdev->dev,
+				"could not load firmware (err=%d)\n", ret);
+		return -EINVAL;
 	}
-	fw_requested = 0;
-	fsize = fp->f_path.dentry->d_inode->i_size;
-	dbg("start, file path %s, size %ld Bytes\n", FIMC_IS_FW_SDCARD, fsize);
-	buf = vmalloc(fsize);
-	if (!buf) {
-		err("failed to allocate memory\n");
-		ret = -ENOMEM;
-		goto out;
-	}
-	nread = vfs_read(fp, (char __user *)buf, fsize, &fp->f_pos);
-	if (nread != fsize) {
-		err("failed to read firmware file, %ld Bytes\n", nread);
-		ret = -EIO;
-		goto out;
-	}
-
 #if defined(CONFIG_VIDEOBUF2_CMA_PHYS)
-	memcpy((void *)phys_to_virt(dev->mem.base), (void *)buf, fsize);
+	memcpy((void *)phys_to_virt(dev->mem.base),
+			fw_blob->data, fw_blob->size);
 	fimc_is_mem_cache_clean((void *)phys_to_virt(dev->mem.base),
-		fsize + 1);
+			fw_blob->size + 1);
 	if (dev->mem.fw_ref_base > 0) {
 		memcpy((void *)phys_to_virt(dev->mem.fw_ref_base),
-							(void *)buf, fsize);
+				fw_blob->data, fw_blob->size);
 		fimc_is_mem_cache_clean(
-			(void *)phys_to_virt(dev->mem.fw_ref_base), fsize + 1);
-		dev->fw.size = fsize;
+				(void *)phys_to_virt(dev->mem.fw_ref_base),
+				fw_blob->size + 1);
+		dev->fw.size = fw_blob->size;
 	}
 #elif defined(CONFIG_VIDEOBUF2_ION)
 	if (dev->mem.bitproc_buf == 0) {
-		err("failed to load FIMC-IS F/W, FIMC-IS will not working\n");
+		err("failed to load FIMC-IS F/W\n");
+		return -EINVAL;
 	} else {
-		memcpy(dev->mem.kvaddr, (void *)buf, fsize);
-		fimc_is_mem_cache_clean((void *)dev->mem.kvaddr, fsize + 1);
-	}
-#endif
-	vfs_llseek(fp, -FIMC_IS_FW_VERSION_LENGTH, SEEK_END);
-	vfs_read(fp, (char __user *)dev->fw.fw_version,
-				(FIMC_IS_FW_VERSION_LENGTH - 1), &fp->f_pos);
-	dev->fw.fw_version[FIMC_IS_FW_VERSION_LENGTH - 1] = '\0';
-	vfs_llseek(fp, -(FIMC_IS_FW_INFO_LENGTH +
-				FIMC_IS_FW_VERSION_LENGTH - 1), SEEK_END);
-	vfs_read(fp, (char __user *)dev->fw.fw_info,
-					(FIMC_IS_FW_INFO_LENGTH-1), &fp->f_pos);
-	dev->fw.fw_info[FIMC_IS_FW_INFO_LENGTH - 1] = '\0';
-	dev->fw.state = 1;
-request_fw:
-	if (fw_requested) {
-		set_fs(old_fs);
-#endif
-		ret = request_firmware((const struct firmware **)&fw_blob,
-					FIMC_IS_FW, &dev->pdev->dev);
-		if (ret) {
-			dev_err(&dev->pdev->dev,
-				"could not load firmware (err=%d)\n", ret);
-			return -EINVAL;
-		}
-#if defined(CONFIG_VIDEOBUF2_CMA_PHYS)
-		memcpy((void *)phys_to_virt(dev->mem.base),
-				fw_blob->data, fw_blob->size);
-		fimc_is_mem_cache_clean((void *)phys_to_virt(dev->mem.base),
-							fw_blob->size + 1);
-		if (dev->mem.fw_ref_base > 0) {
-			memcpy((void *)phys_to_virt(dev->mem.fw_ref_base),
-						fw_blob->data, fw_blob->size);
-			fimc_is_mem_cache_clean(
-				(void *)phys_to_virt(dev->mem.fw_ref_base),
-				fw_blob->size + 1);
-			dev->fw.size = fw_blob->size;
-		}
-#elif defined(CONFIG_VIDEOBUF2_ION)
-		if (dev->mem.bitproc_buf == 0) {
-			err("failed to load FIMC-IS F/W\n");
-			return -EINVAL;
-		} else {
-			memcpy(dev->mem.kvaddr, fw_blob->data, fw_blob->size);
-			fimc_is_mem_cache_clean(
+		memcpy(dev->mem.kvaddr, fw_blob->data, fw_blob->size);
+		fimc_is_mem_cache_clean(
 				(void *)dev->mem.kvaddr, fw_blob->size + 1);
-			dbg(
-		"FIMC_IS F/W loaded successfully - size:%d\n", fw_blob->size);
-		}
+		dbg(
+				"FIMC_IS F/W loaded successfully - size:%d\n", fw_blob->size);
+	}
 #endif
-		memcpy((void *)dev->fw.fw_info,
+	memcpy((void *)dev->fw.fw_info,
 			(fw_blob->data + fw_blob->size -
-			(FIMC_IS_FW_INFO_LENGTH + FIMC_IS_FW_VERSION_LENGTH-1)),
+			 (FIMC_IS_FW_INFO_LENGTH + FIMC_IS_FW_VERSION_LENGTH-1)),
 			(FIMC_IS_FW_INFO_LENGTH - 1));
-		dev->fw.fw_info[FIMC_IS_FW_INFO_LENGTH - 1] = '\0';
-		memcpy((void *)dev->fw.fw_version,
+	dev->fw.fw_info[FIMC_IS_FW_INFO_LENGTH - 1] = '\0';
+	memcpy((void *)dev->fw.fw_version,
 			(fw_blob->data + fw_blob->size -
-				FIMC_IS_FW_VERSION_LENGTH),
-					(FIMC_IS_FW_VERSION_LENGTH - 1));
-		dev->fw.fw_version[FIMC_IS_FW_VERSION_LENGTH - 1] = '\0';
-		dev->fw.state = 1;
-		dbg("FIMC_IS F/W loaded successfully - size:%d\n",
-							fw_blob->size);
-		release_firmware(fw_blob);
-#ifdef SDCARD_FW
-	}
-#endif
-
+			 FIMC_IS_FW_VERSION_LENGTH),
+			(FIMC_IS_FW_VERSION_LENGTH - 1));
+	dev->fw.fw_version[FIMC_IS_FW_VERSION_LENGTH - 1] = '\0';
+	dev->fw.state = 1;
+	dbg("FIMC_IS F/W loaded successfully - size:%d\n",
+			fw_blob->size);
+	release_firmware(fw_blob);
 out:
-#ifdef SDCARD_FW
-	if (!fw_requested) {
-		vfree(buf);
-		filp_close(fp, current->files);
-		set_fs(old_fs);
-	}
-#endif
 	printk(KERN_INFO "FIMC_IS FW loaded = 0x%08x\n", dev->mem.base);
 	return ret;
 }
@@ -218,125 +144,53 @@ static int fimc_is_load_setfile(struct fimc_is_dev *dev)
 	int ret;
 	struct firmware *fw_blob;
 	u8 *buf = NULL;
-#ifdef SDCARD_FW
-	struct file *fp;
-	mm_segment_t old_fs;
-	long fsize, nread;
-	int fw_requested = 1;
-
-	ret = 0;
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	fp = filp_open(FIMC_IS_SETFILE_SDCARD, O_RDONLY, 0);
-	if (IS_ERR(fp)) {
-		dbg("failed to open %s\n", FIMC_IS_SETFILE_SDCARD);
-		goto request_fw;
-	}
-	fw_requested = 0;
-	fsize = fp->f_path.dentry->d_inode->i_size;
-	dbg("start, file path %s, size %ld Bytes\n",
-		FIMC_IS_SETFILE_SDCARD, fsize);
-	buf = vmalloc(fsize);
-	if (!buf) {
-		err("failed to allocate memory\n");
-		ret = -ENOMEM;
-		goto out;
-	}
-	nread = vfs_read(fp, (char __user *)buf, fsize, &fp->f_pos);
-	if (nread != fsize) {
-		err("failed to read firmware file, %ld Bytes\n", nread);
-		ret = -EIO;
-		goto out;
+	ret = request_firmware((const struct firmware **)&fw_blob,
+			FIMC_IS_SETFILE, &dev->pdev->dev);
+	if (ret) {
+		dev_err(&dev->pdev->dev,
+				"could not load firmware (err=%d)\n", ret);
+		return -EINVAL;
 	}
 #if defined(CONFIG_VIDEOBUF2_CMA_PHYS)
 	memcpy((void *)phys_to_virt(dev->mem.base + dev->setfile.base),
-							(void *)buf, fsize);
+			fw_blob->data, fw_blob->size);
 	fimc_is_mem_cache_clean(
-		(void *)phys_to_virt(dev->mem.base + dev->setfile.base),
-		fsize + 1);
+			(void *)phys_to_virt(dev->mem.base + dev->setfile.base),
+			fw_blob->size + 1);
 	if (dev->mem.setfile_ref_base > 0) {
 		memcpy((void *)phys_to_virt(dev->mem.setfile_ref_base),
-							(void *)buf, fsize);
+				fw_blob->data, fw_blob->size);
 		fimc_is_mem_cache_clean(
-			(void *)phys_to_virt(dev->mem.setfile_ref_base),
-			fsize + 1);
-		dev->setfile.size = fsize;
+				(void *)phys_to_virt(dev->mem.setfile_ref_base),
+				fw_blob->size + 1);
+		dev->setfile.size = fw_blob->size;
 	}
 #elif defined(CONFIG_VIDEOBUF2_ION)
 	if (dev->mem.bitproc_buf == 0) {
-		err("failed to load FIMC-IS F/W, FIMC-IS will not working\n");
+		err("failed to load FIMC-IS F/W\n");
+		return -EINVAL;
 	} else {
 		memcpy((dev->mem.kvaddr + dev->setfile.base),
-						(void *)buf, fsize);
-		fimc_is_mem_cache_clean((void *)dev->mem.kvaddr, fsize + 1);
-		dbg("FIMC_IS Setfile loaded successfully - size:%ld\n", fsize);
-	}
-#endif
-	vfs_llseek(fp, -FIMC_IS_SETFILE_INFO_LENGTH, SEEK_END);
-	vfs_read(fp, (char __user *)dev->fw.setfile_info,
-				FIMC_IS_SETFILE_INFO_LENGTH, &fp->f_pos);
-	dev->setfile.state = 1;
-request_fw:
-	if (fw_requested) {
-		set_fs(old_fs);
-#endif
-		ret = request_firmware((const struct firmware **)&fw_blob,
-					FIMC_IS_SETFILE, &dev->pdev->dev);
-		if (ret) {
-			dev_err(&dev->pdev->dev,
-				"could not load firmware (err=%d)\n", ret);
-			return -EINVAL;
-		}
-#if defined(CONFIG_VIDEOBUF2_CMA_PHYS)
-		memcpy((void *)phys_to_virt(dev->mem.base + dev->setfile.base),
-			fw_blob->data, fw_blob->size);
-		fimc_is_mem_cache_clean(
-			(void *)phys_to_virt(dev->mem.base + dev->setfile.base),
-			fw_blob->size + 1);
-		if (dev->mem.setfile_ref_base > 0) {
-			memcpy((void *)phys_to_virt(dev->mem.setfile_ref_base),
-					fw_blob->data, fw_blob->size);
-			fimc_is_mem_cache_clean(
-				(void *)phys_to_virt(dev->mem.setfile_ref_base),
+				fw_blob->data, fw_blob->size);
+		fimc_is_mem_cache_clean((void *)dev->mem.kvaddr,
 				fw_blob->size + 1);
-			dev->setfile.size = fw_blob->size;
-		}
-#elif defined(CONFIG_VIDEOBUF2_ION)
-		if (dev->mem.bitproc_buf == 0) {
-			err("failed to load FIMC-IS F/W\n");
-			return -EINVAL;
-		} else {
-			memcpy((dev->mem.kvaddr + dev->setfile.base),
-						fw_blob->data, fw_blob->size);
-			fimc_is_mem_cache_clean((void *)dev->mem.kvaddr,
-						fw_blob->size + 1);
-			dbg(
-		"FIMC_IS F/W loaded successfully - size:%d\n", fw_blob->size);
-		}
-#endif
-		memcpy((void *)dev->fw.setfile_info,
-			(fw_blob->data + fw_blob->size -
-				FIMC_IS_SETFILE_INFO_LENGTH),
-				(FIMC_IS_SETFILE_INFO_LENGTH - 1));
-		dev->fw.setfile_info[FIMC_IS_SETFILE_INFO_LENGTH - 1] = '\0';
-		dev->setfile.state = 1;
-		dbg("FIMC_IS setfile loaded successfully - size:%d\n",
-								fw_blob->size);
-		release_firmware(fw_blob);
-#ifdef SDCARD_FW
+		dbg(
+				"FIMC_IS F/W loaded successfully - size:%d\n", fw_blob->size);
 	}
 #endif
+	memcpy((void *)dev->fw.setfile_info,
+			(fw_blob->data + fw_blob->size -
+			 FIMC_IS_SETFILE_INFO_LENGTH),
+			(FIMC_IS_SETFILE_INFO_LENGTH - 1));
+	dev->fw.setfile_info[FIMC_IS_SETFILE_INFO_LENGTH - 1] = '\0';
+	dev->setfile.state = 1;
+	dbg("FIMC_IS setfile loaded successfully - size:%d\n",
+			fw_blob->size);
+	release_firmware(fw_blob);
 
 	dbg("A5 mem base  = 0x%08x\n", dev->mem.base);
 	dbg("Setfile base  = 0x%08x\n", dev->setfile.base);
 out:
-#ifdef SDCARD_FW
-	if (!fw_requested) {
-		vfree(buf);
-		filp_close(fp, current->files);
-		set_fs(old_fs);
-	}
-#endif
 	return ret;
 }
 
