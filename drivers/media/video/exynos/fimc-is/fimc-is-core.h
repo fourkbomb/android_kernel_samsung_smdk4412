@@ -242,8 +242,8 @@ struct is_meminfo {
 	size_t		dvaddr;
 	unsigned char	*kvaddr;
 	void *fw_cookie;
-	dma_addr_t	fw_ref_base;
-	dma_addr_t	setfile_ref_base;
+	void *fw_ref_base;
+	void *setfile_ref_base;
 };
 
 struct is_fw {

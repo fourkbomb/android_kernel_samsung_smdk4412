@@ -168,7 +168,7 @@ int fimc_is_alloc_firmware(struct fimc_is_dev *dev)
 
 	dbg("Allocating memory for FIMC-IS firmware.\n");
 	fimc_is_bitproc_buf =
-		vb2_ion_private_alloc(dev->alloc_ctx, FIMC_IS_A5_MEM_SIZE);
+		vb2_ion_private_alloc(dev->alloc_ctx, FIMC_IS_A5_MEM_SIZE + FIMC_IS_EXTRA_MEM_SIZE);
 	if (IS_ERR(fimc_is_bitproc_buf)) {
 		fimc_is_bitproc_buf = 0;
 		printk(KERN_ERR "Allocating bitprocessor buffer failed\n");
@@ -200,6 +200,7 @@ int fimc_is_alloc_firmware(struct fimc_is_dev *dev)
 			(long unsigned int)virt_to_phys(dev->mem.kvaddr));
 	dev->mem.bitproc_buf = fimc_is_bitproc_buf;
 	dev->mem.fw_cookie = fimc_is_bitproc_buf;
+	dev->mem.size = FIMC_IS_A5_MEM_SIZE + FIMC_IS_EXTRA_MEM_SIZE;
 
 	is_vb_cookie = dev->mem.fw_cookie;
 	buf_start = dev->mem.kvaddr;
@@ -255,10 +256,15 @@ int fimc_is_init_mem_mgr(struct fimc_is_dev *dev)
 			FIMC_IS_A5_MEM_SIZE - FIMC_IS_REGION_SIZE);
 	dev->is_shared_region =
 		(struct is_share_region *)(dev->mem.kvaddr + FIMC_IS_SHARED_REGION_ADDR);
+	memset((void *)dev->is_p_region, 0, (unsigned long)sizeof(struct is_region));
 	if (fimc_is_cache_flush(dev, (void *)dev->is_p_region, IS_PARAM_SIZE)) {
 		err("fimc_is_cache_flush-Err\n");
 		return -EINVAL;
 	}
+
+	dev->mem.fw_ref_base = dev->mem.kvaddr + FIMC_IS_A5_MEM_SIZE + 0x1000;
+	dev->mem.setfile_ref_base = dev->mem.kvaddr + FIMC_IS_A5_MEM_SIZE + 0x1000 + FIMC_IS_EXTRA_FW_SIZE;
+
 	return 0;
 }
 #endif

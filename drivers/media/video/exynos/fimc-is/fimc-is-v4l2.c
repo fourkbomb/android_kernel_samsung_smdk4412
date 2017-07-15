@@ -113,9 +113,13 @@ static int fimc_is_request_firmware(struct fimc_is_dev *dev)
 		err("failed to load FIMC-IS F/W\n");
 		return -EINVAL;
 	} else {
-		memcpy(dev->mem.kvaddr, fw_blob->data, fw_blob->size);
+		memcpy((void*)dev->mem.kvaddr, fw_blob->data, fw_blob->size);
 		fimc_is_mem_cache_clean(
 				(void *)dev->mem.kvaddr, fw_blob->size + 1);
+
+		memcpy((void*)dev->mem.fw_ref_base, fw_blob->data, fw_blob->size);
+		fimc_is_mem_cache_clean(dev->mem.fw_ref_base, fw_blob->size + 1);
+		dev->fw.size = fw_blob->size;
 		dbg(
 				"FIMC_IS F/W loaded successfully - size:%d\n", fw_blob->size);
 	}
@@ -172,10 +176,13 @@ static int fimc_is_load_setfile(struct fimc_is_dev *dev)
 	} else {
 		memcpy((dev->mem.kvaddr + dev->setfile.base),
 				fw_blob->data, fw_blob->size);
-		fimc_is_mem_cache_clean((void *)dev->mem.kvaddr,
+		fimc_is_mem_cache_clean((void *)(dev->mem.kvaddr + dev->setfile.base),
 				fw_blob->size + 1);
-		dbg(
-				"FIMC_IS F/W loaded successfully - size:%d\n", fw_blob->size);
+
+		memcpy(dev->mem.setfile_ref_base, fw_blob->data, fw_blob->size);
+		fimc_is_mem_cache_clean(dev->mem.setfile_ref_base, fw_blob->size + 1);
+		dev->setfile.size = fw_blob->size;
+		dbg("FIMC_IS F/W loaded successfully - size:%d\n", fw_blob->size);
 	}
 #endif
 	memcpy((void *)dev->fw.setfile_info,
@@ -186,9 +193,10 @@ static int fimc_is_load_setfile(struct fimc_is_dev *dev)
 	dev->setfile.state = 1;
 	dbg("FIMC_IS setfile loaded successfully - size:%d\n",
 			fw_blob->size);
+	dbg("FIMC_IS setfile info: '%s'\n", dev->fw.setfile_info);
 	release_firmware(fw_blob);
 
-	dbg("A5 mem base  = 0x%08x\n", dev->mem.base);
+	dbg("A5 mem base  = 0x%08x\n", dev->mem.dvaddr);
 	dbg("Setfile base  = 0x%08x\n", dev->setfile.base);
 out:
 	return ret;
@@ -207,11 +215,16 @@ static int fimc_is_load_fw(struct v4l2_subdev *sd)
 	}
 	/* 1. Load IS firmware */
 	if (dev->fw.state && (dev->mem.fw_ref_base > 0)) {
+#ifdef CONFIG_VIDEOBUF2_CMA_PHYS
 		memcpy((void *)phys_to_virt(dev->mem.base),
 			(void *)phys_to_virt(dev->mem.fw_ref_base),
 			dev->fw.size);
 		fimc_is_mem_cache_clean((void *)phys_to_virt(dev->mem.base),
 							dev->fw.size + 1);
+#else
+		memcpy((void*)dev->mem.kvaddr, (void*)dev->mem.fw_ref_base, dev->fw.size);
+		fimc_is_mem_cache_clean((void*)dev->mem.kvaddr, dev->fw.size + 1);
+#endif
 	} else {
 		ret = fimc_is_request_firmware(dev);
 		if (ret) {
@@ -364,12 +377,17 @@ static int fimc_is_init_set(struct v4l2_subdev *sd, u32 val)
 	}
 	dbg("v4l2 : load setfile\n");
 	if (dev->setfile.state && (dev->mem.setfile_ref_base > 0)) {
+#ifdef CONFIG_VIDEOBUF2_CMA_PHYS
 		memcpy((void *)phys_to_virt(dev->mem.base + dev->setfile.base),
 			(void *)phys_to_virt(dev->mem.setfile_ref_base),
 			dev->setfile.size);
 		fimc_is_mem_cache_clean(
 			(void *)phys_to_virt(dev->mem.base + dev->setfile.base),
 			dev->setfile.size + 1);
+#else
+		memcpy((void*)(dev->mem.kvaddr + dev->setfile.base), (void*)dev->mem.setfile_ref_base, dev->setfile.size);
+		fimc_is_mem_cache_clean(dev->mem.kvaddr + dev->setfile.base, dev->setfile.size + 1);
+#endif
 	} else {
 		fimc_is_load_setfile(dev);
 	}
@@ -379,7 +397,7 @@ static int fimc_is_init_set(struct v4l2_subdev *sd, u32 val)
 		test_bit(IS_ST_SETFILE_LOADED, &dev->state),
 		FIMC_IS_SHUTDOWN_TIMEOUT);
 	if (!ret) {
-		err("wait timeout - get setfile address\n");
+		err("wait timeout - a5 load setfile\n");
 		fimc_is_hw_set_low_poweroff(dev, true);
 		return -EINVAL;
 	}
