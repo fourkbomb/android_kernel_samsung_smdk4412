@@ -858,9 +858,9 @@ static void fimc_job_abort(void *priv)
 	v4l2_m2m_get_next_job(fimc->m2m.m2m_dev, ctx->m2m_ctx);
 }
 
-static int fimc_queue_setup(struct vb2_queue *vq, unsigned int *num_buffers,
-			    unsigned int *num_planes, unsigned long sizes[],
-			    void *allocators[])
+static int fimc_queue_setup(struct vb2_queue *vq, const struct v4l2_format *v4l2_fmt,
+				unsigned int *num_buffers, unsigned int *num_planes,
+				unsigned int sizes[], void *allocators[])
 {
 	struct fimc_ctx *ctx = vb2_get_drv_priv(vq);
 	struct fimc_frame *f;
@@ -2096,7 +2096,7 @@ static int fimc_probe(struct platform_device *pdev)
 	}
 
 	set_bit(ST_PWR_ON, &fimc->state);
-	pm_runtime_get_sync(&fimc->pdev->dev);
+	fimc_runtime_get(fimc);
 
 	fimc_hw_set_irq_level(fimc);
 	if (fimc->variant->out_buf_count > 4)

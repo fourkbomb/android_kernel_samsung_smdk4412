@@ -569,7 +569,6 @@ static int fimc_stop_capture(struct fimc_dev *fimc)
 	return 0;
 }
 
-
 static int start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct fimc_ctx *ctx = q->drv_priv;
@@ -629,7 +628,7 @@ static int start_streaming(struct vb2_queue *q, unsigned int count)
 
 	if (ctx->state & FIMC_PARAMS) {
 		ret = fimc_set_scaler_info(ctx);
-		if (ret)
+		if (ret) {
 			err("Scaler setup error");
 			goto error;
 		}
@@ -693,9 +692,9 @@ static unsigned int get_plane_size(struct fimc_frame *fr, unsigned int plane)
 	return fr->payload[plane];
 }
 
-static int queue_setup(struct vb2_queue *vq, unsigned int *num_buffers,
-		       unsigned int *num_planes, unsigned long sizes[],
-		       void *allocators[])
+static int queue_setup(struct vb2_queue *vq, const struct v4l2_format *v4l2_fmt,
+			unsigned int *num_buffers, unsigned int *num_planes,
+			unsigned int sizes[], void *allocators[])
 {
 	struct fimc_ctx *ctx = vq->drv_priv;
 	struct fimc_fmt *fmt = ctx->d_frame.fmt;

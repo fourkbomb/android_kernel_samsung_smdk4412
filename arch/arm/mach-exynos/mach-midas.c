@@ -4304,6 +4304,11 @@ static void __init exynos_sysmmu_init(void)
 	platform_set_sysmmu(&SYSMMU_PLATDEV(fimc1).dev, &s3c_device_fimc1.dev);
 	platform_set_sysmmu(&SYSMMU_PLATDEV(fimc2).dev, &s3c_device_fimc2.dev);
 	platform_set_sysmmu(&SYSMMU_PLATDEV(fimc3).dev, &s3c_device_fimc3.dev);
+#elif defined(CONFIG_VIDEO_SAMSUNG_S5P_FIMC)
+	platform_set_sysmmu(&SYSMMU_PLATDEV(fimc0).dev, &s5p_device_fimc0.dev);
+	platform_set_sysmmu(&SYSMMU_PLATDEV(fimc1).dev, &s5p_device_fimc1.dev);
+	platform_set_sysmmu(&SYSMMU_PLATDEV(fimc2).dev, &s5p_device_fimc2.dev);
+	platform_set_sysmmu(&SYSMMU_PLATDEV(fimc3).dev, &s5p_device_fimc3.dev);
 #endif
 #ifdef CONFIG_VIDEO_TVOUT
 	platform_set_sysmmu(&SYSMMU_PLATDEV(tv).dev, &s5p_device_tvout.dev);
@@ -5207,7 +5212,12 @@ static void __init exynos4_reserve(void)
 
 #ifdef CONFIG_DMA_CMA
 #ifdef CONFIG_USE_FIMC_CMA
-	ret = dma_declare_contiguous(&s3c_device_fimc1.dev,
+	ret = dma_declare_contiguous(
+#ifdef CONFIG_VIDEO_SAMSUNG_S5P_FIMC
+			&s5p_device_fimc1.dev,
+#else
+			&s3c_device_fimc1.dev,
+#endif
 		CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMC1 * SZ_1K, 0x65800000, 0);
 	if (ret != 0)
 		panic("alloc failed for FIMC1\n");
