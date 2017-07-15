@@ -668,7 +668,7 @@ config VIDEO_S5K4EA
 
 config VIDEO_S5C73M3
 	tristate "S5C73M3 MIPI CSI-2 supporting camera driver"
-	depends on I2C && VIDEO_V4L2 && VIDEO_FIMC_MIPI
+	depends on I2C && VIDEO_V4L2 && (VIDEO_FIMC_MIPI || VIDEO_S5P_MIPI_CSIS)
 	---help---
 	  This driver supports s5c73m3 ISP camera module with
 	  MIPI CSI-2 as well
