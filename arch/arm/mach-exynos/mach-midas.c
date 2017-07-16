@@ -3505,6 +3505,11 @@ struct platform_device coresight_etm_device = {
 
 #endif
 
+#ifdef CONFIG_VIDEO_S5P_MIPI_CSIS
+// from midas-camera
+extern struct platform_device mipi_csi_fixed_voltage;
+#endif
+
 static struct platform_device *midas_devices[] __initdata = {
 #ifdef CONFIG_SEC_WATCHDOG_RESET
 	&watchdog_reset_device,
@@ -3721,6 +3726,10 @@ static struct platform_device *midas_devices[] __initdata = {
 #if defined(CONFIG_VIDEO_FIMC_MIPI)
 	&s3c_device_csis0,
 	&s3c_device_csis1,
+#elif defined(CONFIG_VIDEO_S5P_MIPI_CSIS)
+	&s5p_device_mipi_csis0,
+	&s5p_device_mipi_csis1,
+	&mipi_csi_fixed_voltage,
 #endif
 #if defined(CONFIG_VIDEO_MFC5X) || defined(CONFIG_VIDEO_SAMSUNG_S5P_MFC)
 	&s5p_device_mfc,
