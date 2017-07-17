@@ -7254,10 +7254,11 @@ static struct s5p_fimc_isp_info isp_info[] = {
 
 static void __init midas_subdev_config(void)
 {
-	s3c_fimc0_default_data.isp_info[0] = &s5k6a3;
+	s3c_fimc0_default_data.isp_info[0] = &s5c73m3;
 	s3c_fimc0_default_data.isp_info[0]->use_cam = true;
-	s3c_fimc0_default_data.isp_info[1] = &s5c73m3;
+	s3c_fimc0_default_data.isp_info[1] = &s5k6a3;
 	s3c_fimc0_default_data.isp_info[1]->use_cam = true;
+
 /*	s3c_fimc0_default_data.isp_info[2] = &isp_info[1];
 	s3c_fimc0_default_data.isp_info[2]->use_cam = false;
 	s3c_fimc0_default_data.isp_info[3] = &isp_info[1];
