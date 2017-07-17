@@ -13,6 +13,8 @@
 #define CONFIG_CAM_DEBUG	1
 /*#define FEATURE_DEBUG_DUMP*/
 
+#define S5C73M3_CLK_NAME "sclk_cam0"
+
 #define cam_warn(fmt, ...)	\
 	do { \
 		printk(KERN_WARNING "%s: " fmt, __func__, ##__VA_ARGS__); \
@@ -221,6 +223,8 @@ struct s5c73m3_state {
 
 	u8 sensor_fw[10];
 	u8 phone_fw[10];
+
+	int clk_on;
 
 #ifdef CONFIG_CAM_DEBUG
 	u8 dbg_level;

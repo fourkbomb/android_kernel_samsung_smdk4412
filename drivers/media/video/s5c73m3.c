@@ -13,6 +13,7 @@
  * for more details.
  */
 
+#include <linux/clk.h>
 #include <linux/i2c.h>
 #include <linux/init.h>
 #include <media/v4l2-device.h>
@@ -3606,8 +3607,57 @@ static int s5c73m3_init(struct v4l2_subdev *sd, u32 val)
 	return 0;
 }
 
+static int s5c73m3_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct s5c73m3_state *state = to_state(sd);
+	int ret = 0;
+	struct clk *camclk = clk_get(sd->v4l2_dev->dev, S5C73M3_CLK_NAME);
+	if (!camclk) {
+		ret = -ENOSYS;
+		cam_err("failed to get clk %s\n", S5C73M3_CLK_NAME);
+		goto err_clk;
+	}
+	// power on:
+	// get clock
+	// set clock rate if clk_get_rate is true
+	// enable clock
+	// power_on_off(1)
+	// call subdev init
+	// power off:
+	// power_on_off(0)
+	// disable clock
+	if (on) {
+		if (clk_get_rate(camclk) && (state->clk_on == 0)) {
+			clk_set_rate(camclk, state->pdata->freq);
+			clk_enable(camclk);
+			state->clk_on = 1;
+			cam_dbg("enabled clock %s at freq %d\n", S5C73M3_CLK_NAME, state->pdata->freq);
+		}
+		if (state->pdata->power_on_off) {
+			ret = state->pdata->power_on_off(1);
+			if (ret < 0) {
+				// TODO do we need to retry?
+				cam_err("failed to power_on_off: %d", ret);
+				goto err;
+			}
+		}
+		s5c73m3_init(sd, 0);
+	} else {
+		if (state->pdata->power_on_off)
+			state->pdata->power_on_off(0);
+		if (state->clk_on)
+			clk_disable(camclk);
+	}
+
+err:
+	clk_put(camclk);
+err_clk:
+	return ret;
+}
+
 static const struct v4l2_subdev_core_ops s5c73m3_core_ops = {
 	.init = s5c73m3_init,		/* initializing API */
+	.s_power = s5c73m3_s_power,
 	.load_fw = s5c73m3_load_fw,
 	.queryctrl = s5c73m3_queryctrl,
 	.g_ctrl = s5c73m3_g_ctrl,
