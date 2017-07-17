@@ -1257,8 +1257,10 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	int up_threshold = dbs_tuners_ins.up_threshold;
 
 	policy = this_dbs_info->cur_policy;
-	if (num_hist >= MAX_HOTPLUG_RATE)
-		pr_err("pegasusq: num_hist = %d hotplug_history = %p\n", num_hist, hotplug_history);
+	if (num_hist >= MAX_HOTPLUG_RATE) {
+		num_hist = 0;
+		//pr_err("pegasusq: num_hist = %d hotplug_history = %p\n", num_hist, hotplug_history);
+	}
 	hotplug_history->usage[num_hist].freq = policy->cur;
 	hotplug_history->usage[num_hist].rq_avg = get_nr_run_avg();
 	++hotplug_history->num_hist;
