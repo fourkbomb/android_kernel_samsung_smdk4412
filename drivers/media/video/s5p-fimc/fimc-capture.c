@@ -1406,6 +1406,37 @@ static int fimc_cap_s_crop(struct file *file, void *fh,
 	return 0;
 }
 
+static int fimc_cap_g_parm(struct file *file, void *fh,
+		struct v4l2_streamparm *a)
+{
+	struct fimc_ctx *ctx = file->private_data;
+	struct fimc_dev *fimc = ctx->fimc_dev;
+	int ret = -ENOSYS;
+
+	if (fimc->vid_cap.sd != NULL) {
+		ret = v4l2_subdev_call(fimc->vid_cap.sd, video, g_parm, a);
+	} else if (fimc->vid_cap.is.sd != NULL) {
+		ret = v4l2_subdev_call(fimc->vid_cap.is.sd, video, g_parm, a);
+	}
+
+	return ret;
+}
+
+static int fimc_cap_s_parm(struct file *file, void *fh,
+		struct v4l2_streamparm *a)
+{
+	struct fimc_ctx *ctx = file->private_data;
+	struct fimc_dev *fimc = ctx->fimc_dev;
+	int ret = -ENOSYS;
+
+	if (fimc->vid_cap.sd != NULL) {
+		ret = v4l2_subdev_call(fimc->vid_cap.sd, video, s_parm, a);
+	} else if (fimc->vid_cap.is.sd != NULL) {
+		ret = v4l2_subdev_call(fimc->vid_cap.is.sd, video, s_parm, a);
+	}
+
+	return ret;
+}
 
 static const struct v4l2_ioctl_ops fimc_capture_ioctl_ops = {
 	.vidioc_querycap		= fimc_vidioc_querycap_capture,
@@ -1436,6 +1467,9 @@ static const struct v4l2_ioctl_ops fimc_capture_ioctl_ops = {
 	.vidioc_enum_input		= fimc_cap_enum_input,
 	.vidioc_s_input			= fimc_cap_s_input,
 	.vidioc_g_input			= fimc_cap_g_input,
+
+	.vidioc_g_parm			= fimc_cap_g_parm,
+	.vidioc_s_parm			= fimc_cap_s_parm,
 };
 
 /*
