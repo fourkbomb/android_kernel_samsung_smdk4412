@@ -163,6 +163,8 @@ static int flite_register_callback(struct device *dev, void *p)
 	sd = dev_get_drvdata(dev);
 	if (sd) {
 		struct platform_device *pdev = v4l2_get_subdevdata(sd);
+		if (pdev->id < 0 || pdev->id > FLITE_MAX_NUM)
+			return 0;
 		*(sd_list + pdev->id) = sd;
 	}
 
