@@ -3643,6 +3643,8 @@ static int s5c73m3_s_power(struct v4l2_subdev *sd, int on)
 		}
 		s5c73m3_init(sd, 0);
 	} else {
+		if (s5c73m3_set_af_softlanding(sd) < 0)
+			cam_err("failed to set soft landing\n");
 		if (state->pdata->power_on_off)
 			state->pdata->power_on_off(0);
 		if (state->clk_on)
@@ -3768,9 +3770,6 @@ static int __devexit s5c73m3_remove(struct i2c_client *client)
 
 	if (unlikely(state->isp.bad_fw)) {
 		cam_err("camera is not ready!!\n");
-	} else {
-		if (s5c73m3_set_af_softlanding(sd) < 0)
-			cam_err("failed to set soft landing\n");
 	}
 	v4l2_device_unregister_subdev(sd);
 
