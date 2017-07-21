@@ -26,8 +26,8 @@ module_param(debug, int, 0644);
 
 #define dprintk(level, fmt, arg...)					\
 	do {								\
-		if (debug >= level)					\
-			printk(KERN_DEBUG "vb2: " fmt, ## arg);		\
+		if (1 || debug >= level)					\
+			pr_err("vb2: " fmt, ## arg);		\
 	} while (0)
 
 #define call_memop(q, op, args...)					\
