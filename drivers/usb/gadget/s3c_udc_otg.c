@@ -412,7 +412,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		return retval;
 	}
 #if defined(CONFIG_USB_EXYNOS_SWITCH) || defined(CONFIG_MFD_MAX77693)\
-	|| defined(CONFIG_MFD_MAX8997) || defined(CONFIG_MFD_MAX77686)
+	|| defined(CONFIG_MFD_MAX77686)
 	printk(KERN_INFO "usb: Skip udc_enable\n");
 
 #else
