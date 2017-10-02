@@ -58,6 +58,7 @@ void do_integrity_check(void);
 int testmgr_crypto_proc_init(void);
 #else
 void __init crypto_init_proc(void);
+int testmgr_crypto_proc_init(void);
 #endif
 void __exit crypto_exit_proc(void);
 #else
