@@ -1170,7 +1170,6 @@ int s3cfb_wait_for_vsync(struct s3cfb_global *fbdev)
 #endif
 
 
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
 /**
  * s3c_fb_align_word() - align pixel count to word boundary
  * @bpp: The number of bits per pixel
@@ -1525,7 +1524,6 @@ static inline u32 wincon(u32 bits_per_pixel, u32 transp_length, u32 red_length)
 
 	return data;
 }
-#endif
 
 #ifdef CONFIG_BUSFREQ_OPP
 void s3c_fb_set_busfreq(struct s3cfb_global *fbdev, unsigned int num_of_win)
@@ -1563,12 +1561,6 @@ void s3c_fb_update_regs(struct s3cfb_global *fbdev, struct s3c_reg_data *regs)
 	struct s3cfb_window *win;
 	struct sync_fence *old_fence[S3C_FB_MAX_WIN];
 
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
-#ifdef CONFIG_BUSFREQ_OPP
-	unsigned int new_num_of_win = 0;
-	unsigned int pre_num_of_win = 0;
-	unsigned int shadow_regs = 0;
-	unsigned int clkval = 0;
 	memset(&old_fence, 0, sizeof(old_fence));
 
 	for (i = 0; i < pdata->nr_wins; i++) {
@@ -1576,6 +1568,13 @@ void s3c_fb_update_regs(struct s3cfb_global *fbdev, struct s3c_reg_data *regs)
 		if (regs->fence[i])
 			s3c_fd_fence_wait(fbdev, regs->fence[i]);
 	}
+
+#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
+#ifdef CONFIG_BUSFREQ_OPP
+	unsigned int new_num_of_win = 0;
+	unsigned int pre_num_of_win = 0;
+	unsigned int shadow_regs = 0;
+	unsigned int clkval = 0;
 
 	for (i = 0; i < pdata->nr_wins; i++)
 		if (regs->shadowcon & SHADOWCON_CHx_ENABLE(i))
@@ -1727,7 +1726,6 @@ static bool s3c_fb_validate_x_alignment(struct s3cfb_global *fbdev, int x, u32 w
 	return 1;
 }
 
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
 static int s3c_fb_set_win_buffer(struct s3cfb_global *fbdev,
 		struct fb_info *fb, struct s3c_fb_win_config *win_config,
 		struct s3c_reg_data *regs)
@@ -2030,7 +2028,6 @@ static int s3c_fb_set_win_config(struct s3cfb_global *fbdev,
 
 	return ret;
 }
-#endif
 
 int s3cfb_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 {
@@ -2100,7 +2097,7 @@ int s3cfb_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 				   sizeof(p.user_window)))
 			ret = -EFAULT;
 		else {
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
+#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412) || defined(CONFIG_CPU_EXYNOS4210)
 			win->x = p.user_window.x;
 			win->y = p.user_window.y;
 #else
@@ -2226,7 +2223,6 @@ int s3cfb_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 			s3cfb_set_alpha_mode(fbdev, win->id, p.alpha_mode);
 		break;
 
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
 	case S3CFB_WIN_CONFIG:
 		if (copy_from_user(&p.win_data,
 				   (struct s3c_fb_win_config_data __user *)arg,
@@ -2246,7 +2242,6 @@ int s3cfb_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 			break;
 		}
 		break;
-#endif
 	case S3CFB_SET_INITIAL_CONFIG:
 		fix->smem_start = fbdev->initial_fix.smem_start;
 		fix->smem_len = fbdev->initial_fix.smem_len;
