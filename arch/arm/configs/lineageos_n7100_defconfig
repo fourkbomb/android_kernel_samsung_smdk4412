@@ -535,7 +535,7 @@ CONFIG_T0_04_BD=y
 # CONFIG_MACH_SF2 is not set
 # CONFIG_SLP is not set
 # CONFIG_MACH_REDWOOD is not set
-# CONFIG_GPS_BCM47511 is not set
+CONFIG_GPS_BCM47511=y
 # CONFIG_GPS_BCM4752 is not set
 # CONFIG_GPS_GSD4T is not set
 # CONFIG_GPIO_NAPLES_00_BD is not set
@@ -637,7 +637,7 @@ CONFIG_SEC_MODEM_M0=y
 #
 # Connectivity Feature
 #
-# CONFIG_GPS_BCMxxxxx is not set
+CONFIG_GPS_BCMxxxxx=y
 # CONFIG_GPS_BCM47521 is not set
 # CONFIG_GPS_CSRxT is not set
 # CONFIG_GPS_GSD5T is not set
