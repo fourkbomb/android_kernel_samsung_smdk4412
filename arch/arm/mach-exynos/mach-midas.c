@@ -4092,7 +4092,7 @@ static void __init exynos4_reserve_mem(void)
 			.start	= 0x53200000,
 #endif
 		},
-#endif
+#endif // ION
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC_SECURE
 		{
 			.name = "mfc-secure",
@@ -4101,7 +4101,7 @@ static void __init exynos4_reserve_mem(void)
 			.start = 0x50100000,
 #endif
 		},
-#endif
+#endif // MFC_SECURE
 		{
 			.name = "sectbl",
 			.size = SZ_1M,
@@ -4119,7 +4119,7 @@ static void __init exynos4_reserve_mem(void)
 			.start = 0x5F200000,
 #endif
 		},
-#endif
+#endif // ION
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC_SECURE
 		{
 			.name = "mfc-secure",
@@ -4130,7 +4130,7 @@ static void __init exynos4_reserve_mem(void)
 			.start = 0x5C100000,
 #endif
 		},
-#endif
+#endif // MEMSIZE_MFC_SECURE
 		{
 			.name = "sectbl",
 			.size = SZ_1M,
@@ -4140,28 +4140,49 @@ static void __init exynos4_reserve_mem(void)
 			.start = 0x5C000000,
 #endif
 		},
-#elif defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_GC2PD)
+#elif defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_GC2PD) // M0 || ZEST || WATCH
 #ifdef CONFIG_ION_EXYNOS_CONTIGHEAP_SIZE
 		{
 			.name = "ion",
 			.size = CONFIG_ION_EXYNOS_CONTIGHEAP_SIZE * SZ_1K,
 			.start = 0x53300000,
 		},
-#endif
+#endif // ION
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC_SECURE
 		{
 			.name = "mfc-secure",
 			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC_SECURE * SZ_1K,
 			.start = 0x50200000,
 		},
-#endif
+#endif // MFC_SECURE
 		{
 			.name = "sectbl",
 			.size = SZ_1M,
 			.start = 0x50000000,
 		},
+#else // M0 || ZEST || WATCH
+#ifdef CONFIG_ION_EXYNOS_CONTIGHEAP_SIZE
+		{
+			.name   = "ion",
+			.size   = CONFIG_ION_EXYNOS_CONTIGHEAP_SIZE * SZ_1K,
+			.start = 0x5F200000,
+		},
 #endif
-#else
+#ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC_SECURE
+		{
+			.name = "mfc-secure",
+			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC_SECURE * SZ_1K,
+			// mfc-secure must be below mfc-normal
+			.start = 0x5C100000,
+		},
+#endif
+		{
+			.name = "sectbl",
+			.size = SZ_1M,
+			.start = 0x5C000000,
+		},
+#endif // M0 || ZEST || WATCH
+#else // MFC_CMA
 #ifdef CONFIG_ION_EXYNOS_CONTIGHEAP_SIZE
 		{
 			.name   = "ion",
@@ -5260,6 +5281,9 @@ static void __init exynos4_reserve(void)
 #elif defined(CONFIG_MACH_GC1)|| defined(CONFIG_MACH_GC2PD)
 	ret = dma_declare_contiguous(&s5p_device_mfc.dev,
 			0x02800000, 0x50800000, 0);
+#else
+	ret = dma_declare_contiguous(&s5p_device_mfc.dev,
+			0x02800000, 0x5C800000, 0);
 #endif
 #endif
 	if (ret != 0)
